@@ -7,6 +7,7 @@ import os from 'os';
 import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
 import { changeDirectory, getCurrentDirectoryInfo } from './tools/dirTools';
+import { addBookmark, getBookmark, listBookmarks, removeBookmark } from './tools/bookmarks';
 import { toolDefinitions } from './tools/definitions';
 import {
   browseFiles,
@@ -123,8 +124,28 @@ interface DirectoryChangeResult {
   newDirectory: string;
 }
 
+// Bookmark results
+interface BookmarkResult {
+  success: boolean;
+  message: string;
+  bookmarks?: Array<{
+    name: string;
+    path: string;
+    description?: string;
+    lastAccessed?: number;
+  }>;
+}
+
 // Combined tool result type
-type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult | DirectoryChangeResult;
+type ToolResult =
+  | ShellResult
+  | FileResult
+  | FileBrowserResult
+  | FileDetailsResult
+  | CodeAnalysisResult
+  | GitOperationResult
+  | DirectoryChangeResult
+  | BookmarkResult;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -240,19 +261,25 @@ Basic tools:
 2. run_shell - Execute shell commands in the project directory
 3. edit_file - Edit file contents using path and content
 
+Directory bookmarks:
+4. bookmark_directory - Save current or specified directory as a named bookmark
+5. use_bookmark - Change to a previously bookmarked directory
+6. list_bookmarks - Show all saved directory bookmarks
+7. remove_bookmark - Delete a saved bookmark
+
 File browser tools:
-4. browse_files - Browse files in a directory with optional filtering and sorting
-5. file_details - Get details about a specific file, including its content
-6. analyze_code - Analyze code in a file to extract information about its structure
+8. browse_files - Browse files in a directory with optional filtering and sorting
+9. file_details - Get details about a specific file, including its content
+10. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-7. git_status - Get the git status of the repository
-8. git_commits - Get recent git commits
-9. git_commit - Create a git commit
-10. git_diff - Get the diff for a file or the entire repository
-11. git_checkout - Perform a git checkout
-12. git_pull - Perform a git pull
-13. git_push - Perform a git push
+11. git_status - Get the git status of the repository
+12. git_commits - Get recent git commits
+13. git_commit - Create a git commit
+14. git_diff - Get the diff for a file or the entire repository
+15. git_checkout - Perform a git checkout
+16. git_pull - Perform a git pull
+17. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -411,6 +438,70 @@ async function executeToolCall(
         }
       }
       return dirResult;
+
+    case 'bookmark_directory':
+      const dirPath = toolInput.path || projectDir;
+      const bookmark = addBookmark(toolInput.name, dirPath, toolInput.description);
+
+      if (bookmark) {
+        return {
+          success: true,
+          message: `Directory "${dirPath}" bookmarked as "${toolInput.name}"`
+        };
+      } else {
+        return {
+          success: false,
+          message: `Failed to bookmark directory "${dirPath}"`
+        };
+      }
+
+    case 'use_bookmark':
+      const foundBookmark = getBookmark(toolInput.name);
+
+      if (!foundBookmark) {
+        return {
+          success: false,
+          message: `Bookmark "${toolInput.name}" not found`
+        };
+      }
+
+      // Change to the bookmarked directory
+      const bookmarkDirResult = await changeDirectory(foundBookmark.path, projectDir);
+      if (bookmarkDirResult.success) {
+        // Update the current directory
+        currentDirectory = bookmarkDirResult.newDirectory;
+
+        // Notify the renderer about the directory change
+        mainWindow?.webContents.send('directory-changed', currentDirectory);
+
+        // Save the last used directory
+        const historyPath = path.join(os.homedir(), '.llmterminal_history');
+        try {
+          fs.writeFileSync(historyPath, JSON.stringify({ lastDir: currentDirectory }));
+        } catch {
+          // Ignore errors in saving history
+        }
+      }
+      return bookmarkDirResult;
+
+    case 'list_bookmarks':
+      const bookmarks = listBookmarks();
+
+      return {
+        success: true,
+        message: `Found ${bookmarks.length} bookmarks`,
+        bookmarks
+      };
+
+    case 'remove_bookmark':
+      const removed = removeBookmark(toolInput.name);
+
+      return {
+        success: removed,
+        message: removed
+          ? `Bookmark "${toolInput.name}" removed`
+          : `Failed to remove bookmark "${toolInput.name}". Bookmark may not exist.`
+      };
 
     case 'run_shell':
       return await executeShellCommand(toolInput.command, projectDir, false);

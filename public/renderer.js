@@ -138,6 +138,14 @@ document.addEventListener('DOMContentLoaded', () => {
       content += `<div class="tool-command">Editing file: ${data.input.path}</div>`;
     } else if (data.tool === 'change_directory') {
       content += `<div class="tool-command">Changing directory to: ${data.input.path}</div>`;
+    } else if (data.tool === 'bookmark_directory') {
+      content += `<div class="tool-command">Bookmarking directory as: ${data.input.name}</div>`;
+    } else if (data.tool === 'use_bookmark') {
+      content += `<div class="tool-command">Changing to bookmarked directory: ${data.input.name}</div>`;
+    } else if (data.tool === 'list_bookmarks') {
+      content += `<div class="tool-command">Listing saved directory bookmarks</div>`;
+    } else if (data.tool === 'remove_bookmark') {
+      content += `<div class="tool-command">Removing bookmark: ${data.input.name}</div>`;
     }
     
     toolEl.innerHTML = content;
@@ -185,15 +193,41 @@ document.addEventListener('DOMContentLoaded', () => {
       resultEl.className = 'tool-output';
       resultEl.textContent = data.result.message;
       toolEl.appendChild(resultEl);
-    } else if (data.tool === 'change_directory') {
+    } else if (data.tool === 'change_directory' || data.tool === 'use_bookmark') {
       const resultEl = document.createElement('div');
       resultEl.className = 'tool-output';
       resultEl.textContent = data.result.message;
       toolEl.appendChild(resultEl);
 
-      if (data.result.success) {
+      if (data.result.success && data.result.newDirectory) {
         updateDirectoryDisplay(data.result.newDirectory);
       }
+    } else if (data.tool === 'bookmark_directory' || data.tool === 'remove_bookmark') {
+      const resultEl = document.createElement('div');
+      resultEl.className = 'tool-output';
+      resultEl.textContent = data.result.message;
+      toolEl.appendChild(resultEl);
+    } else if (data.tool === 'list_bookmarks' && data.result.bookmarks) {
+      const resultEl = document.createElement('div');
+      resultEl.className = 'tool-output';
+
+      if (data.result.bookmarks.length === 0) {
+        resultEl.textContent = 'No bookmarks found.';
+      } else {
+        const bookmarksList = document.createElement('ul');
+        bookmarksList.className = 'bookmarks-list';
+
+        data.result.bookmarks.forEach(bookmark => {
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${bookmark.name}</strong>: ${bookmark.path}${bookmark.description ? ` - ${bookmark.description}` : ''}`;
+          bookmarksList.appendChild(li);
+        });
+
+        resultEl.textContent = `Found ${data.result.bookmarks.length} bookmarks:`;
+        resultEl.appendChild(bookmarksList);
+      }
+
+      toolEl.appendChild(resultEl);
     }
   }
 

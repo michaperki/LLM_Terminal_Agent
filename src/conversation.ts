@@ -3,6 +3,7 @@ import { toolDefinitions } from './tools/definitions';
 import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
 import { changeDirectory } from './tools/dirTools';
+import { addBookmark, getBookmark, listBookmarks, removeBookmark } from './tools/bookmarks';
 import readline from 'readline';
 import path from 'path';
 
@@ -103,8 +104,28 @@ interface DirectoryChangeResult {
   newDirectory: string;
 }
 
+// Bookmark results
+interface BookmarkResult {
+  success: boolean;
+  message: string;
+  bookmarks?: Array<{
+    name: string;
+    path: string;
+    description?: string;
+    lastAccessed?: number;
+  }>;
+}
+
 // Combined tool result type
-type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult | DirectoryChangeResult;
+type ToolResult =
+  | ShellResult
+  | FileResult
+  | FileBrowserResult
+  | FileDetailsResult
+  | CodeAnalysisResult
+  | GitOperationResult
+  | DirectoryChangeResult
+  | BookmarkResult;
 
 export async function startConversation(options: ConversationOptions) {
   console.log(`Starting conversation with ${options.provider} using model ${options.model}`);
@@ -137,19 +158,25 @@ Basic tools:
 2. run_shell - Execute shell commands in the project directory
 3. edit_file - Edit file contents using path and content
 
+Directory bookmarks:
+4. bookmark_directory - Save current or specified directory as a named bookmark
+5. use_bookmark - Change to a previously bookmarked directory
+6. list_bookmarks - Show all saved directory bookmarks
+7. remove_bookmark - Delete a saved bookmark
+
 File browser tools:
-4. browse_files - Browse files in a directory with optional filtering and sorting
-5. file_details - Get details about a specific file, including its content
-6. analyze_code - Analyze code in a file to extract information about its structure
+8. browse_files - Browse files in a directory with optional filtering and sorting
+9. file_details - Get details about a specific file, including its content
+10. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-7. git_status - Get the git status of the repository
-8. git_commits - Get recent git commits
-9. git_commit - Create a git commit
-10. git_diff - Get the diff for a file or the entire repository
-11. git_checkout - Perform a git checkout
-12. git_pull - Perform a git pull
-13. git_push - Perform a git push
+11. git_status - Get the git status of the repository
+12. git_commits - Get recent git commits
+13. git_commit - Create a git commit
+14. git_diff - Get the diff for a file or the entire repository
+15. git_checkout - Perform a git checkout
+16. git_pull - Perform a git pull
+17. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -160,6 +187,8 @@ Git operations:
 Example 1: If user asks "What files are in this directory?", use run_shell tool with command "ls -la"
 Example 2: If user asks "Create a new file", use edit_file tool with appropriate path and content
 Example 3: If user asks "Let's look at another project", use change_directory tool to switch directories
+Example 4: If user says "Bookmark this directory as 'project'", use bookmark_directory tool
+Example 5: If user says "Go to my project directory", use use_bookmark tool with the bookmark name
 
 NEVER refuse to use tools when they would help complete the user's request.`
     }
@@ -349,6 +378,64 @@ async function executeToolCall(
         console.log(`\nSuccessfully changed directory to: ${options.projectDir}`);
       }
       return dirResult;
+
+    case 'bookmark_directory':
+      console.log(`\n[Bookmarking directory as: ${toolInput.name}]`);
+      const dirPath = toolInput.path || options.projectDir;
+      const bookmark = addBookmark(toolInput.name, dirPath, toolInput.description);
+
+      if (bookmark) {
+        return {
+          success: true,
+          message: `Directory "${dirPath}" bookmarked as "${toolInput.name}"`
+        };
+      } else {
+        return {
+          success: false,
+          message: `Failed to bookmark directory "${dirPath}"`
+        };
+      }
+
+    case 'use_bookmark':
+      console.log(`\n[Using bookmark: ${toolInput.name}]`);
+      const foundBookmark = getBookmark(toolInput.name);
+
+      if (!foundBookmark) {
+        return {
+          success: false,
+          message: `Bookmark "${toolInput.name}" not found`
+        };
+      }
+
+      // Change to the bookmarked directory
+      const bookmarkDirResult = await changeDirectory(foundBookmark.path, options.projectDir);
+      if (bookmarkDirResult.success) {
+        // Update the project directory in options
+        options.projectDir = bookmarkDirResult.newDirectory;
+        console.log(`\nSuccessfully changed to bookmarked directory: ${options.projectDir}`);
+      }
+      return bookmarkDirResult;
+
+    case 'list_bookmarks':
+      console.log(`\n[Listing bookmarks]`);
+      const bookmarks = listBookmarks();
+
+      return {
+        success: true,
+        message: `Found ${bookmarks.length} bookmarks`,
+        bookmarks
+      };
+
+    case 'remove_bookmark':
+      console.log(`\n[Removing bookmark: ${toolInput.name}]`);
+      const removed = removeBookmark(toolInput.name);
+
+      return {
+        success: removed,
+        message: removed
+          ? `Bookmark "${toolInput.name}" removed`
+          : `Failed to remove bookmark "${toolInput.name}". Bookmark may not exist.`
+      };
 
     case 'run_shell':
       console.log(`\n[Executing command: ${toolInput.command}]`);

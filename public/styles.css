@@ -228,3 +228,23 @@ code {
   padding: 2px 4px;
   border-radius: 3px;
 }
+
+.bookmarks-list {
+  margin-top: 8px;
+  margin-left: 20px;
+  list-style-type: none;
+}
+
+.bookmarks-list li {
+  padding: 4px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.bookmarks-list li:last-child {
+  border-bottom: none;
+}
+
+.bookmarks-list strong {
+  color: #4a69bd;
+  margin-right: 8px;
+}

@@ -18,6 +18,68 @@ export const toolDefinitions = [
   },
   {
     type: 'custom',
+    name: 'bookmark_directory',
+    description: 'Save current directory or specified directory as a bookmark with a name',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name for the bookmark'
+        },
+        path: {
+          type: 'string',
+          description: 'Directory path to bookmark (defaults to current directory if not specified)'
+        },
+        description: {
+          type: 'string',
+          description: 'Optional description of the bookmarked directory'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    type: 'custom',
+    name: 'use_bookmark',
+    description: 'Change to a bookmarked directory',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the bookmark to use'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    type: 'custom',
+    name: 'list_bookmarks',
+    description: 'List all saved directory bookmarks',
+    input_schema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    type: 'custom',
+    name: 'remove_bookmark',
+    description: 'Remove a saved directory bookmark',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the bookmark to remove'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    type: 'custom',
     name: 'run_shell',
     description: 'Execute a shell command in the project directory and capture stdout/stderr/exit_code',
     input_schema: {
