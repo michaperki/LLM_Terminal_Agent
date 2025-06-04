@@ -5,6 +5,13 @@ import { editFile } from './tools/file';
 import { changeDirectory } from './tools/dirTools';
 import { addBookmark, getBookmark, listBookmarks, removeBookmark } from './tools/bookmarks';
 import { addHistoryEntry, getHistory, clearHistory } from './tools/history';
+import {
+  getProjectConfig,
+  saveProjectConfig,
+  ProjectConfig,
+  addCustomCommand,
+  getCustomCommands
+} from './config';
 import readline from 'readline';
 import path from 'path';
 
@@ -135,6 +142,23 @@ interface HistoryResult {
   }>;
 }
 
+// Configuration result
+interface ConfigResult {
+  success: boolean;
+  message: string;
+  config?: ProjectConfig;
+}
+
+// Custom command result
+interface CustomCommandResult {
+  success: boolean;
+  message: string;
+  name?: string;
+  description?: string;
+  command?: string;
+  output?: string;
+}
+
 // Combined tool result type
 type ToolResult =
   | ShellResult
@@ -145,15 +169,26 @@ type ToolResult =
   | GitOperationResult
   | DirectoryChangeResult
   | BookmarkResult
-  | HistoryResult;
+  | HistoryResult
+  | ConfigResult
+  | CustomCommandResult;
 
 export async function startConversation(options: ConversationOptions) {
   console.log(`Starting conversation with ${options.provider} using model ${options.model}`);
   console.log(`Project directory: ${options.projectDir}`);
-  
+
+  // Load project configuration
+  const projectConfig = await getProjectConfig(options.projectDir);
+  console.log(`Loaded project configuration with model: ${projectConfig.model}`);
+
+  // Override options with project configuration
+  options.model = projectConfig.model || options.model;
+  options.maxTokens = projectConfig.maxTokens || options.maxTokens;
+  options.temperature = projectConfig.temperature || options.temperature;
+
   // Initialize client based on provider
   const client = initializeClient(options);
-  
+
   // Setup readline interface
   const rl = readline.createInterface({
     input: process.stdin,
@@ -184,24 +219,30 @@ Directory bookmarks:
 6. list_bookmarks - Show all saved directory bookmarks
 7. remove_bookmark - Delete a saved bookmark
 
+Project configuration:
+8. get_config - Get configuration settings for the current project
+9. update_config - Update configuration settings for the current project
+10. add_custom_command - Add a custom command to the current project
+11. run_custom_command - Run a custom command defined in the project
+
 Command history:
-8. show_history - Display previous commands and their results
-9. clear_history - Clear command history (all or specific entry)
-10. repeat_command - Repeat a previous command from history
+12. show_history - Display previous commands and their results
+13. clear_history - Clear command history (all or specific entry)
+14. repeat_command - Repeat a previous command from history
 
 File browser tools:
-11. browse_files - Browse files in a directory with optional filtering and sorting
-12. file_details - Get details about a specific file, including its content
-13. analyze_code - Analyze code in a file to extract information about its structure
+15. browse_files - Browse files in a directory with optional filtering and sorting
+16. file_details - Get details about a specific file, including its content
+17. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-14. git_status - Get the git status of the repository
-15. git_commits - Get recent git commits
-16. git_commit - Create a git commit
-17. git_diff - Get the diff for a file or the entire repository
-18. git_checkout - Perform a git checkout
-19. git_pull - Perform a git pull
-20. git_push - Perform a git push
+18. git_status - Get the git status of the repository
+19. git_commits - Get recent git commits
+20. git_commit - Create a git commit
+21. git_diff - Get the diff for a file or the entire repository
+22. git_checkout - Perform a git checkout
+23. git_pull - Perform a git pull
+24. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -216,6 +257,8 @@ Example 4: If user says "Bookmark this directory as 'project'", use bookmark_dir
 Example 5: If user says "Go to my project directory", use use_bookmark tool with the bookmark name
 Example 6: If user asks "Show my command history", use show_history tool
 Example 7: If user says "Run the last command again", use repeat_command tool with index 1
+Example 8: If user says "Update the model to claude-3-haiku", use update_config tool
+Example 9: If user says "Add a build command", use add_custom_command tool
 
 NEVER refuse to use tools when they would help complete the user's request.`
     }
@@ -574,6 +617,120 @@ async function executeToolCall(
             : "All command history cleared"
           : `Failed to clear history ${toolInput.entry_id ? 'entry ' + toolInput.entry_id : ''}`
       };
+
+    case 'get_config':
+      console.log(`\n[Getting project configuration]`);
+      try {
+        const config = await getProjectConfig(options.projectDir);
+        return {
+          success: true,
+          message: 'Project configuration retrieved successfully',
+          config
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error retrieving project configuration: ${error.message}`
+        };
+      }
+
+    case 'update_config':
+      console.log(`\n[Updating project configuration]`);
+      try {
+        const currentConfig = await getProjectConfig(options.projectDir);
+        const updatedConfig = {
+          ...currentConfig,
+          ...toolInput.settings
+        };
+
+        const saveLocation = toolInput.save_location || 'local';
+        const saved = await saveProjectConfig(options.projectDir, updatedConfig, saveLocation as 'local' | 'global');
+
+        if (saved) {
+          // Update current options with new config
+          if (updatedConfig.model) options.model = updatedConfig.model;
+          if (updatedConfig.maxTokens) options.maxTokens = updatedConfig.maxTokens;
+          if (updatedConfig.temperature) options.temperature = updatedConfig.temperature;
+
+          return {
+            success: true,
+            message: `Project configuration updated successfully and saved to ${saveLocation} location`,
+            config: updatedConfig
+          };
+        } else {
+          return {
+            success: false,
+            message: 'Failed to save project configuration'
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error updating project configuration: ${error.message}`
+        };
+      }
+
+    case 'add_custom_command':
+      console.log(`\n[Adding custom command: ${toolInput.name}]`);
+      try {
+        const added = await addCustomCommand(
+          options.projectDir,
+          toolInput.name,
+          toolInput.description,
+          toolInput.command
+        );
+
+        if (added) {
+          return {
+            success: true,
+            message: `Custom command "${toolInput.name}" added successfully`,
+            name: toolInput.name,
+            description: toolInput.description,
+            command: toolInput.command
+          };
+        } else {
+          return {
+            success: false,
+            message: `Failed to add custom command "${toolInput.name}"`
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error adding custom command: ${error.message}`
+        };
+      }
+
+    case 'run_custom_command':
+      console.log(`\n[Running custom command: ${toolInput.name}]`);
+      try {
+        const commands = await getCustomCommands(options.projectDir);
+        const commandConfig = commands[toolInput.name];
+
+        if (!commandConfig) {
+          return {
+            success: false,
+            message: `Custom command "${toolInput.name}" not found`
+          };
+        }
+
+        // Execute the command
+        const result = await executeShellCommand(commandConfig.command, options.projectDir, options.useSandbox);
+
+        return {
+          success: result.exit_code === 0,
+          message: `Custom command "${toolInput.name}" executed ${result.exit_code === 0 ? 'successfully' : 'with errors'}`,
+          name: toolInput.name,
+          description: commandConfig.description,
+          command: commandConfig.command,
+          output: result.stdout + (result.stderr ? `\n${result.stderr}` : '')
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error running custom command: ${error.message}`
+        };
+      }
 
     case 'repeat_command':
       console.log(`\n[Repeating command from history]`);

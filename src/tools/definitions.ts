@@ -3,6 +3,89 @@
 export const toolDefinitions = [
   {
     type: 'custom',
+    name: 'get_config',
+    description: 'Get configuration settings for the current project',
+    input_schema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    type: 'custom',
+    name: 'update_config',
+    description: 'Update configuration settings for the current project',
+    input_schema: {
+      type: 'object',
+      properties: {
+        settings: {
+          type: 'object',
+          description: 'Configuration settings to update'
+        },
+        save_location: {
+          type: 'string',
+          enum: ['local', 'global'],
+          description: 'Where to save the configuration (local = in project directory, global = in user home directory)',
+          default: 'local'
+        }
+      },
+      required: ['settings']
+    }
+  },
+  {
+    type: 'custom',
+    name: 'add_custom_command',
+    description: 'Add a custom command to the current project',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the custom command'
+        },
+        description: {
+          type: 'string',
+          description: 'Description of what the command does'
+        },
+        command: {
+          type: 'string',
+          description: 'The shell command to execute'
+        }
+      },
+      required: ['name', 'description', 'command']
+    }
+  },
+  {
+    type: 'custom',
+    name: 'run_custom_command',
+    description: 'Run a custom command defined in the project configuration',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the custom command to run'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    type: 'custom',
+    name: 'remove_custom_command',
+    description: 'Remove a custom command from the project configuration',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Name of the custom command to remove'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    type: 'custom',
     name: 'show_history',
     description: 'Show previous commands and interactions',
     input_schema: {

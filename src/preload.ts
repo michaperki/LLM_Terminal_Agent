@@ -65,5 +65,23 @@ contextBridge.exposeInMainWorld('api', {
     return () => {
       ipcRenderer.removeAllListeners('repeat-command');
     };
-  }
+  },
+
+  onConfigUpdated: (callback: (config: any) => void) => {
+    ipcRenderer.on('config-updated', (_, config) => callback(config));
+    return () => {
+      ipcRenderer.removeAllListeners('config-updated');
+    };
+  },
+
+  onCustomCommandsUpdated: (callback: () => void) => {
+    ipcRenderer.on('custom-commands-updated', () => callback());
+    return () => {
+      ipcRenderer.removeAllListeners('custom-commands-updated');
+    };
+  },
+
+  getProjectConfig: () => ipcRenderer.invoke('get-project-config'),
+
+  getCustomCommands: () => ipcRenderer.invoke('get-custom-commands')
 });

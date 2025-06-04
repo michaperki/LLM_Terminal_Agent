@@ -12,6 +12,14 @@ import { addBookmark, getBookmark, listBookmarks, removeBookmark } from './tools
 import { addHistoryEntry, getHistory, clearHistory } from './tools/history';
 import { toolDefinitions } from './tools/definitions';
 import {
+  getProjectConfig,
+  saveProjectConfig,
+  ProjectConfig,
+  addCustomCommand,
+  getCustomCommands,
+  removeCustomCommand
+} from './config';
+import {
   browseFiles,
   getFileDetails,
   analyzeCode,
@@ -158,6 +166,23 @@ interface HistoryResult {
   }>;
 }
 
+// Configuration result
+interface ConfigResult {
+  success: boolean;
+  message: string;
+  config?: ProjectConfig;
+}
+
+// Custom command result
+interface CustomCommandResult {
+  success: boolean;
+  message: string;
+  name?: string;
+  description?: string;
+  command?: string;
+  output?: string;
+}
+
 // Combined tool result type
 type ToolResult =
   | ShellResult
@@ -168,7 +193,9 @@ type ToolResult =
   | GitOperationResult
   | DirectoryChangeResult
   | BookmarkResult
-  | HistoryResult;
+  | HistoryResult
+  | ConfigResult
+  | CustomCommandResult;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -291,6 +318,26 @@ ipcMain.handle('get-file-content', async (event, filePath) => {
   }
 });
 
+// Get project configuration
+ipcMain.handle('get-project-config', async () => {
+  try {
+    const config = await getProjectConfig(currentDirectory);
+    return { success: true, config };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get custom commands
+ipcMain.handle('get-custom-commands', async () => {
+  try {
+    const commands = await getCustomCommands(currentDirectory);
+    return { success: true, commands };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Handle IPC communication for sending messages to the LLM
 ipcMain.handle('send-message', async (event, message: string) => {
   try {
@@ -331,24 +378,31 @@ Directory bookmarks:
 6. list_bookmarks - Show all saved directory bookmarks
 7. remove_bookmark - Delete a saved bookmark
 
+Project configuration:
+8. get_config - Get configuration settings for the current project
+9. update_config - Update configuration settings for the current project
+10. add_custom_command - Add a custom command to the current project
+11. run_custom_command - Run a custom command defined in the project
+12. remove_custom_command - Remove a custom command from the project
+
 Command history:
-8. show_history - Display previous commands and their results
-9. clear_history - Clear command history (all or specific entry)
-10. repeat_command - Repeat a previous command from history
+13. show_history - Display previous commands and their results
+14. clear_history - Clear command history (all or specific entry)
+15. repeat_command - Repeat a previous command from history
 
 File browser tools:
-11. browse_files - Browse files in a directory with optional filtering and sorting
-12. file_details - Get details about a specific file, including its content
-13. analyze_code - Analyze code in a file to extract information about its structure
+16. browse_files - Browse files in a directory with optional filtering and sorting
+17. file_details - Get details about a specific file, including its content
+18. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-14. git_status - Get the git status of the repository
-15. git_commits - Get recent git commits
-16. git_commit - Create a git commit
-17. git_diff - Get the diff for a file or the entire repository
-18. git_checkout - Perform a git checkout
-19. git_pull - Perform a git pull
-20. git_push - Perform a git push
+19. git_status - Get the git status of the repository
+20. git_commits - Get recent git commits
+21. git_commit - Create a git commit
+22. git_diff - Get the diff for a file or the entire repository
+23. git_checkout - Perform a git checkout
+24. git_pull - Perform a git pull
+25. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -373,11 +427,14 @@ Git operations:
       // Send progress update to UI
       mainWindow?.webContents.send('thinking', true);
 
+      // Get project configuration for API call
+      const projectConfig = await getProjectConfig(currentDirectory);
+
       // Call the API
       const response = await client.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
-        max_tokens: 4000,
-        temperature: 0.7,
+        model: projectConfig.model || 'claude-3-5-sonnet-20240620',
+        max_tokens: projectConfig.maxTokens || 4000,
+        temperature: projectConfig.temperature || 0.7,
         system: systemPrompt,
         messages: conversation.map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
@@ -705,6 +762,147 @@ async function executeToolCall(
 
     case 'git_push':
       return await gitPush(projectDir, toolInput.remote, toolInput.branch, toolInput.force);
+
+    case 'get_config':
+      console.log(`\n[Getting project configuration]`);
+      try {
+        const config = await getProjectConfig(projectDir);
+        return {
+          success: true,
+          message: 'Project configuration retrieved successfully',
+          config
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error retrieving project configuration: ${error.message}`
+        };
+      }
+
+    case 'update_config':
+      console.log(`\n[Updating project configuration]`);
+      try {
+        const currentConfig = await getProjectConfig(projectDir);
+        const updatedConfig = {
+          ...currentConfig,
+          ...toolInput.settings
+        };
+
+        const saveLocation = toolInput.save_location || 'local';
+        const saved = await saveProjectConfig(projectDir, updatedConfig, saveLocation as 'local' | 'global');
+
+        if (saved) {
+          // Notify the renderer about configuration update
+          mainWindow?.webContents.send('config-updated', updatedConfig);
+
+          return {
+            success: true,
+            message: `Project configuration updated successfully and saved to ${saveLocation} location`,
+            config: updatedConfig
+          };
+        } else {
+          return {
+            success: false,
+            message: 'Failed to save project configuration'
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error updating project configuration: ${error.message}`
+        };
+      }
+
+    case 'add_custom_command':
+      console.log(`\n[Adding custom command: ${toolInput.name}]`);
+      try {
+        const added = await addCustomCommand(
+          projectDir,
+          toolInput.name,
+          toolInput.description,
+          toolInput.command
+        );
+
+        if (added) {
+          // Notify the renderer about custom command update
+          mainWindow?.webContents.send('custom-commands-updated');
+
+          return {
+            success: true,
+            message: `Custom command "${toolInput.name}" added successfully`,
+            name: toolInput.name,
+            description: toolInput.description,
+            command: toolInput.command
+          };
+        } else {
+          return {
+            success: false,
+            message: `Failed to add custom command "${toolInput.name}"`
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error adding custom command: ${error.message}`
+        };
+      }
+
+    case 'run_custom_command':
+      console.log(`\n[Running custom command: ${toolInput.name}]`);
+      try {
+        const commands = await getCustomCommands(projectDir);
+        const commandConfig = commands[toolInput.name];
+
+        if (!commandConfig) {
+          return {
+            success: false,
+            message: `Custom command "${toolInput.name}" not found`
+          };
+        }
+
+        // Execute the command
+        const result = await executeShellCommand(commandConfig.command, projectDir, false);
+
+        return {
+          success: result.exit_code === 0,
+          message: `Custom command "${toolInput.name}" executed ${result.exit_code === 0 ? 'successfully' : 'with errors'}`,
+          name: toolInput.name,
+          description: commandConfig.description,
+          command: commandConfig.command,
+          output: result.stdout + (result.stderr ? `\n${result.stderr}` : '')
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error running custom command: ${error.message}`
+        };
+      }
+
+    case 'remove_custom_command':
+      console.log(`\n[Removing custom command: ${toolInput.name}]`);
+      try {
+        const removed = await removeCustomCommand(projectDir, toolInput.name);
+
+        if (removed) {
+          // Notify the renderer about custom command update
+          mainWindow?.webContents.send('custom-commands-updated');
+
+          return {
+            success: true,
+            message: `Custom command "${toolInput.name}" removed successfully`
+          };
+        } else {
+          return {
+            success: false,
+            message: `Failed to remove custom command "${toolInput.name}" or command does not exist`
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error removing custom command: ${error.message}`
+        };
+      }
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);

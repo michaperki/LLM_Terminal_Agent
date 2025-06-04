@@ -69,6 +69,19 @@ body {
   border-right: none;
 }
 
+.config-panel {
+  width: 300px;
+  background-color: #f8f9fa;
+  border-left: 1px solid #ddd;
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.config-panel.visible {
+  display: flex;
+}
+
 .file-explorer-header {
   display: flex;
   justify-content: space-between;
@@ -346,6 +359,295 @@ code {
   font-size: 0.85em;
   color: #666;
   margin-top: 4px;
+}
+
+/* Configuration styles */
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.config-table th {
+  text-align: left;
+  background-color: #f2f2f2;
+  padding: 8px;
+  border: 1px solid #ddd;
+}
+
+.config-table td {
+  padding: 8px;
+  border: 1px solid #ddd;
+}
+
+.config-setting {
+  font-weight: bold;
+  color: #4a69bd;
+}
+
+.config-value {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.config-section-header {
+  margin-top: 15px;
+  font-weight: bold;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.custom-commands-list {
+  list-style-type: none;
+  margin-top: 8px;
+  margin-left: 10px;
+}
+
+.custom-commands-list li {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #eee;
+}
+
+.custom-commands-list code {
+  display: block;
+  margin-top: 5px;
+  padding: 5px;
+  background-color: #f5f5f5;
+  border-left: 3px solid #4a69bd;
+}
+
+.updated-settings {
+  margin-top: 10px;
+  font-size: 0.9em;
+}
+
+.updated-settings ul {
+  list-style-type: none;
+  margin-left: 10px;
+  margin-top: 5px;
+}
+
+.tool-output-detail {
+  margin-top: 8px;
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-family: monospace;
+  max-height: 200px;
+  overflow-y: auto;
+  border-left: 3px solid #4a69bd;
+}
+
+/* Configuration panel styles */
+.header-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.config-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.config-panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.config-panel-header button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.config-sections {
+  padding: 10px;
+}
+
+.config-section {
+  margin-bottom: 20px;
+}
+
+.config-section h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #4a69bd;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.config-form-group {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.config-form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  min-width: 40%;
+}
+
+.config-form-group input[type="text"],
+.config-form-group input[type="number"],
+.config-form-group select,
+.config-form-group textarea {
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-family: inherit;
+  flex-grow: 1;
+  min-width: 50%;
+}
+
+#command-script {
+  height: 80px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.config-form-group input[type="range"] {
+  flex-grow: 1;
+  margin-right: 10px;
+}
+
+#temperature-value {
+  min-width: 30px;
+  text-align: center;
+}
+
+#add-command-button {
+  background-color: #4a69bd;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+#add-command-button:hover {
+  background-color: #3c5ba9;
+}
+
+.custom-command-item {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.custom-command-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.custom-command-name {
+  font-weight: bold;
+  color: #4a69bd;
+}
+
+.custom-command-description {
+  font-size: 0.9em;
+  color: #555;
+  margin-bottom: 5px;
+}
+
+.custom-command-code {
+  font-family: monospace;
+  background-color: #eee;
+  padding: 5px;
+  font-size: 0.85em;
+  border-radius: 3px;
+}
+
+.custom-command-actions {
+  margin-top: 5px;
+  display: flex;
+  gap: 5px;
+}
+
+.custom-command-run,
+.custom-command-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 12px;
+  border-radius: 3px;
+}
+
+.custom-command-run {
+  color: #28a745;
+}
+
+.custom-command-delete {
+  color: #dc3545;
+}
+
+.command-modal {
+  display: none;
+  position: fixed;
+  z-index: 100;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.command-modal-content {
+  background-color: white;
+  margin: 15% auto;
+  padding: 20px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 500px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.command-modal h3 {
+  margin-top: 0;
+  color: #4a69bd;
+}
+
+.command-modal-buttons {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.command-modal-buttons button {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.command-modal-save {
+  background-color: #4a69bd;
+  color: white;
+}
+
+.command-modal-cancel {
+  background-color: #f5f5f5;
+  color: #333;
 }
 
 /* File tree styles */
