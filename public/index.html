@@ -14,9 +14,22 @@
 
     <div class="chat-header">
       <!-- Directory display will be added here dynamically -->
+      <button id="toggle-sidebar" title="Toggle file explorer">📁</button>
     </div>
 
-    <div class="chat-container" id="chat-container">
+    <div class="main-content">
+      <div class="file-explorer" id="file-explorer">
+        <div class="file-explorer-header">
+          <h3>File Explorer</h3>
+          <button id="refresh-tree" title="Refresh">🔄</button>
+        </div>
+        <div class="file-tree" id="file-tree">
+          <!-- File tree will be populated here dynamically -->
+          <div class="loading">Loading file tree...</div>
+        </div>
+      </div>
+
+      <div class="chat-container" id="chat-container">
       <div class="welcome-message">
         <h2>Welcome to LLM Terminal Agent</h2>
         <p>Ask me to run commands or edit files in your project. Here are some examples:</p>
@@ -28,8 +41,9 @@
           <li>Let's look at a different project directory</li>
         </ul>
       </div>
+      </div>
     </div>
-    
+
     <div class="input-container">
       <textarea id="user-input" placeholder="Type your request here..."></textarea>
       <button id="send-button">Send</button>

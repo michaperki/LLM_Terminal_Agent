@@ -14,6 +14,8 @@ import {
   browseFiles,
   getFileDetails,
   analyzeCode,
+  getFileTree,
+  getFilteredFileTree,
   getGitStatus,
   getGitCommits,
   createGitCommit,
@@ -257,6 +259,35 @@ ipcMain.handle('select-directory', async () => {
 // Get current directory
 ipcMain.handle('get-current-directory', () => {
   return currentDirectory;
+});
+
+// Get file tree
+ipcMain.handle('get-file-tree', async (event, options = {}) => {
+  try {
+    const tree = await getFileTree(
+      options.path || '',
+      currentDirectory,
+      {
+        maxDepth: options.maxDepth || 3,
+        showHidden: options.showHidden || false,
+        excludePatterns: options.excludePatterns
+      }
+    );
+    return { success: true, tree };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get file content
+ipcMain.handle('get-file-content', async (event, filePath) => {
+  try {
+    const resolvedPath = path.resolve(currentDirectory, filePath);
+    const content = await fs.promises.readFile(resolvedPath, 'utf8');
+    return { success: true, content };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 });
 
 // Handle IPC communication for sending messages to the LLM

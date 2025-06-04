@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatContainer = document.getElementById('chat-container');
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
+  const fileExplorer = document.getElementById('file-explorer');
+  const fileTree = document.getElementById('file-tree');
+  const toggleSidebarBtn = document.getElementById('toggle-sidebar');
+  const refreshTreeBtn = document.getElementById('refresh-tree');
   const directoryDisplay = document.createElement('div');
   directoryDisplay.id = 'current-directory';
   directoryDisplay.className = 'directory-display';
@@ -12,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let isProcessing = false;
   let thinkingIndicator = null;
   let currentDirectory = '';
+  let fileTreeData = null;
   
   // Register event listeners
   sendButton.addEventListener('click', handleSendMessage);
@@ -21,6 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
       handleSendMessage();
     }
   });
+
+  // File explorer event listeners
+  toggleSidebarBtn.addEventListener('click', toggleSidebar);
+  refreshTreeBtn.addEventListener('click', refreshFileTree);
   
   // Register callback for API events
   window.api.onThinking((isThinking) => {
@@ -61,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Get initial directory
   window.api.getCurrentDirectory().then(directory => {
     updateDirectoryDisplay(directory);
+    loadFileTree();
   });
   
   function handleSendMessage() {
@@ -338,4 +348,140 @@ document.addEventListener('DOMContentLoaded', () => {
   function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
+
+  // File explorer functions
+  function toggleSidebar() {
+    fileExplorer.classList.toggle('collapsed');
+  }
+
+  function refreshFileTree() {
+    loadFileTree();
+  }
+
+  function loadFileTree() {
+    // Clear previous content
+    fileTree.innerHTML = '<div class="loading">Loading file tree...</div>';
+
+    // Get file tree from backend
+    window.api.getFileTree({
+      maxDepth: 3,
+      showHidden: false
+    }).then(result => {
+      if (result.success && result.tree) {
+        fileTreeData = result.tree;
+        renderFileTree(result.tree);
+      } else {
+        fileTree.innerHTML = `<div class="error">Error loading file tree: ${result.error || 'Unknown error'}</div>`;
+      }
+    }).catch(error => {
+      fileTree.innerHTML = `<div class="error">Error loading file tree: ${error.message || 'Unknown error'}</div>`;
+    });
+  }
+
+  function renderFileTree(node, container = null) {
+    if (!container) {
+      // Root node, clear the container
+      fileTree.innerHTML = '';
+      container = fileTree;
+    }
+
+    // Create item element
+    const itemEl = document.createElement('div');
+    itemEl.className = 'file-tree-item';
+    itemEl.dataset.path = node.path;
+    itemEl.dataset.type = node.type;
+
+    // Create toggle element for directories
+    const toggleEl = document.createElement('span');
+    toggleEl.className = 'file-tree-toggle';
+    toggleEl.innerHTML = node.type === 'directory' ? '▶' : '';
+    itemEl.appendChild(toggleEl);
+
+    // Create icon element
+    const iconEl = document.createElement('span');
+    iconEl.className = 'file-tree-item-icon';
+
+    if (node.type === 'directory') {
+      iconEl.innerHTML = '📁';
+    } else {
+      // Choose icon based on file extension
+      const extension = node.extension || '';
+      if (['js', 'jsx', 'ts', 'tsx'].includes(extension)) {
+        iconEl.innerHTML = '📄';
+      } else if (['html', 'htm', 'xml'].includes(extension)) {
+        iconEl.innerHTML = '📄';
+      } else if (['css', 'scss', 'sass', 'less'].includes(extension)) {
+        iconEl.innerHTML = '📄';
+      } else if (['json', 'yaml', 'yml', 'toml'].includes(extension)) {
+        iconEl.innerHTML = '📄';
+      } else if (['md', 'markdown', 'txt'].includes(extension)) {
+        iconEl.innerHTML = '📄';
+      } else if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension)) {
+        iconEl.innerHTML = '🖼️';
+      } else {
+        iconEl.innerHTML = '📄';
+      }
+    }
+
+    itemEl.appendChild(iconEl);
+
+    // Create name element
+    const nameEl = document.createElement('span');
+    nameEl.className = 'file-tree-item-name';
+    nameEl.textContent = node.name;
+    itemEl.appendChild(nameEl);
+
+    // Add to container
+    container.appendChild(itemEl);
+
+    // Add click handler
+    itemEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+
+      // Select the item
+      document.querySelectorAll('.file-tree-item.selected').forEach(el => {
+        el.classList.remove('selected');
+      });
+      itemEl.classList.add('selected');
+
+      if (node.type === 'directory') {
+        // Toggle directory expansion
+        const childrenEl = itemEl.nextElementSibling;
+        if (childrenEl && childrenEl.classList.contains('file-tree-children')) {
+          const isExpanded = childrenEl.classList.toggle('expanded');
+          toggleEl.classList.toggle('expanded', isExpanded);
+        }
+      } else {
+        // Handle file click - suggest in input
+        const relativePath = node.path;
+        userInput.value = `Show me the contents of ${relativePath}`;
+      }
+    });
+
+    // For directories with children
+    if (node.type === 'directory' && node.children && node.children.length > 0) {
+      // Create children container
+      const childrenEl = document.createElement('div');
+      childrenEl.className = 'file-tree-children';
+      container.appendChild(childrenEl);
+
+      // Render each child
+      node.children.forEach(child => {
+        renderFileTree(child, childrenEl);
+      });
+
+      // Add double-click handler to toggle expansion
+      itemEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        childrenEl.classList.toggle('expanded');
+        toggleEl.classList.toggle('expanded');
+      });
+    }
+  }
+
+  // Update file tree when directory changes
+  window.api.onDirectoryChanged((directory) => {
+    updateDirectoryDisplay(directory);
+    loadFileTree();
+  });
 });
