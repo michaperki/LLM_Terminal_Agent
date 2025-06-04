@@ -225,8 +225,19 @@ NEVER refuse to use tools when they would help complete the user's request.`
   console.log('\nWelcome to LLM Terminal Agent. Type your request or "exit" to quit.');
 
   let conversationActive = true;
+  let repeatCommandMode = false;
+  let repeatCommandInput = '';
+
   while (conversationActive) {
-    const userInput = await askQuestion(rl, '\nYou: ');
+    // Get user input, or use repeated command if in repeat mode
+    let userInput;
+    if (repeatCommandMode) {
+      userInput = repeatCommandInput;
+      repeatCommandMode = false;
+      console.log(`\nYou (repeated): ${userInput}`);
+    } else {
+      userInput = await askQuestion(rl, '\nYou: ');
+    }
 
     if (userInput.toLowerCase() === 'exit') {
       conversationActive = false;
@@ -234,7 +245,12 @@ NEVER refuse to use tools when they would help complete the user's request.`
     }
 
     // Create a history entry for this interaction
-    const historyEntry = {
+    const historyEntry: {
+      userInput: string;
+      directory: string;
+      tools: Array<{name: string; input: any; result: any}>;
+      assistantResponse?: string;
+    } = {
       userInput,
       directory: options.projectDir,
       tools: []
@@ -245,6 +261,27 @@ NEVER refuse to use tools when they would help complete the user's request.`
 
     try {
       const assistantResponse = await processChatTurn(client, messages, options, historyEntry);
+
+      // Check if this was a repeat_command call
+      const lastToolUsed = historyEntry.tools.length > 0 ? historyEntry.tools[historyEntry.tools.length - 1] : null;
+      if (lastToolUsed && lastToolUsed.name === 'repeat_command' && lastToolUsed.result.success) {
+        // Get the entry to repeat
+        let entryToRepeat;
+        if (lastToolUsed.input.command_id) {
+          const entries = getHistory();
+          entryToRepeat = entries.find(e => e.id === lastToolUsed.input.command_id);
+        } else if (lastToolUsed.input.index) {
+          const entries = getHistory({ limit: lastToolUsed.input.index });
+          entryToRepeat = entries[lastToolUsed.input.index - 1];
+        }
+
+        if (entryToRepeat) {
+          // Set up for next loop iteration to use this command
+          repeatCommandMode = true;
+          repeatCommandInput = entryToRepeat.userInput;
+          continue; // Skip saving history for the repeat_command itself
+        }
+      }
 
       // Save completed history entry with assistant response
       if (assistantResponse) {
@@ -561,14 +598,9 @@ async function executeToolCall(
 
       console.log(`\n[Repeating command: ${historyEntry.userInput}]`);
 
-      // Add a special message to indicate this is a repeated command
-      messages.push({
-        role: 'system',
-        content: `Repeating the previous command: "${historyEntry.userInput}"`
-      });
-
-      // Add the user message from history
-      messages.push({ role: 'user', content: historyEntry.userInput });
+      // For the CLI version, we can use processChatTurn again with the same input
+      // The message will be re-added by the main conversation loop
+      // Here we just return the success result
 
       return {
         success: true,

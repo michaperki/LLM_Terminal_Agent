@@ -267,7 +267,12 @@ ipcMain.handle('send-message', async (event, message: string) => {
     });
 
     // Create a history entry for this interaction
-    const historyEntry = {
+    const historyEntry: {
+      userInput: string;
+      directory: string;
+      tools: Array<{name: string; input: any; result: any}>;
+      assistantResponse?: string;
+    } = {
       userInput: message,
       directory: currentDirectory,
       tools: []
