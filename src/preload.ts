@@ -10,8 +10,13 @@ contextBridge.exposeInMainWorld('api', {
   getCurrentDirectory: () => ipcRenderer.invoke('get-current-directory'),
 
   // File explorer functions
-  getFileTree: (options = {}) => ipcRenderer.invoke('get-file-tree', options),
-  getFileContent: (filePath) => ipcRenderer.invoke('get-file-content', filePath),
+  getFileTree: (options: {
+    path?: string;
+    maxDepth?: number;
+    showHidden?: boolean;
+    excludePatterns?: string[];
+  } = {}) => ipcRenderer.invoke('get-file-tree', options),
+  getFileContent: (filePath: string) => ipcRenderer.invoke('get-file-content', filePath),
 
   onThinking: (callback: (isThinking: boolean) => void) => {
     ipcRenderer.on('thinking', (_, isThinking) => callback(isThinking));

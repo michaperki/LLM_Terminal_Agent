@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
-import fs from 'fs';
+import fs from 'fs/promises';
+import * as fsSync from 'fs';
 import os from 'os';
 import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
@@ -32,7 +33,7 @@ dotenv.config();
 const loadConfig = () => {
   const configPath = path.join(os.homedir(), '.llmterminalrc');
   try {
-    const configData = fs.readFileSync(configPath, 'utf8');
+    const configData = fsSync.readFileSync(configPath, 'utf8');
     return JSON.parse(configData);
   } catch {
     return {};
@@ -239,7 +240,7 @@ ipcMain.handle('select-directory', async () => {
     // Save last used directory for future sessions
     const historyPath = path.join(os.homedir(), '.llmterminal_history');
     try {
-      fs.writeFileSync(historyPath, JSON.stringify({ lastDir: selectedDir }));
+      fsSync.writeFileSync(historyPath, JSON.stringify({ lastDir: selectedDir }));
     } catch {
       // Ignore errors in saving history
     }
@@ -283,7 +284,7 @@ ipcMain.handle('get-file-tree', async (event, options = {}) => {
 ipcMain.handle('get-file-content', async (event, filePath) => {
   try {
     const resolvedPath = path.resolve(currentDirectory, filePath);
-    const content = await fs.promises.readFile(resolvedPath, 'utf8');
+    const content = await fs.readFile(resolvedPath, 'utf8');
     return { success: true, content };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -513,7 +514,7 @@ async function executeToolCall(
         // Save the last used directory
         const historyPath = path.join(os.homedir(), '.llmterminal_history');
         try {
-          fs.writeFileSync(historyPath, JSON.stringify({ lastDir: currentDirectory }));
+          fsSync.writeFileSync(historyPath, JSON.stringify({ lastDir: currentDirectory }));
         } catch {
           // Ignore errors in saving history
         }
@@ -558,7 +559,7 @@ async function executeToolCall(
         // Save the last used directory
         const historyPath = path.join(os.homedir(), '.llmterminal_history');
         try {
-          fs.writeFileSync(historyPath, JSON.stringify({ lastDir: currentDirectory }));
+          fsSync.writeFileSync(historyPath, JSON.stringify({ lastDir: currentDirectory }));
         } catch {
           // Ignore errors in saving history
         }
