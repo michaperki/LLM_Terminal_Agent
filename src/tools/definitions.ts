@@ -49,7 +49,7 @@ export const toolDefinitions = [
   {
     type: 'custom',
     name: 'repeat_command',
-    description: 'Repeat a previous command',
+    description: 'Repeat a previous command (provide either command_id OR index)',
     input_schema: {
       type: 'object',
       properties: {
@@ -61,11 +61,8 @@ export const toolDefinitions = [
           type: 'number',
           description: 'Index of the command to repeat (e.g., 1 for most recent, 2 for second most recent)'
         }
-      },
-      oneOf: [
-        { required: ['command_id'] },
-        { required: ['index'] }
-      ]
+      }
+      // Note: Anthropic API doesn't support oneOf at the top level, so we'll handle validation in the tool logic
     }
   },
   {

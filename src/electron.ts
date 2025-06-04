@@ -592,6 +592,14 @@ async function executeToolCall(
       };
 
     case 'repeat_command':
+      // Validate that we have either command_id or index, but not both
+      if (!toolInput.command_id && !toolInput.index) {
+        return {
+          success: false,
+          message: "You must provide either command_id or index to repeat a command"
+        };
+      }
+
       let historyEntry;
 
       if (toolInput.command_id) {
