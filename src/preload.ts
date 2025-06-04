@@ -49,5 +49,12 @@ contextBridge.exposeInMainWorld('api', {
     return () => {
       ipcRenderer.removeAllListeners('directory-changed');
     };
+  },
+
+  onRepeatCommand: (callback: (command: string) => void) => {
+    ipcRenderer.on('repeat-command', (_, command) => callback(command));
+    return () => {
+      ipcRenderer.removeAllListeners('repeat-command');
+    };
   }
 });

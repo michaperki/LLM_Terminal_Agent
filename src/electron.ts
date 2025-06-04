@@ -8,6 +8,7 @@ import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
 import { changeDirectory, getCurrentDirectoryInfo } from './tools/dirTools';
 import { addBookmark, getBookmark, listBookmarks, removeBookmark } from './tools/bookmarks';
+import { addHistoryEntry, getHistory, clearHistory } from './tools/history';
 import { toolDefinitions } from './tools/definitions';
 import {
   browseFiles,
@@ -136,6 +137,24 @@ interface BookmarkResult {
   }>;
 }
 
+// History results
+interface HistoryResult {
+  success: boolean;
+  message: string;
+  entries?: Array<{
+    id: string;
+    timestamp: number;
+    userInput: string;
+    assistantResponse?: string;
+    directory?: string;
+    tools?: Array<{
+      name: string;
+      input: any;
+      result: any;
+    }>;
+  }>;
+}
+
 // Combined tool result type
 type ToolResult =
   | ShellResult
@@ -145,7 +164,8 @@ type ToolResult =
   | CodeAnalysisResult
   | GitOperationResult
   | DirectoryChangeResult
-  | BookmarkResult;
+  | BookmarkResult
+  | HistoryResult;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -246,6 +266,13 @@ ipcMain.handle('send-message', async (event, message: string) => {
       apiKey: process.env.ANTHROPIC_API_KEY || ''
     });
 
+    // Create a history entry for this interaction
+    const historyEntry = {
+      userInput: message,
+      directory: currentDirectory,
+      tools: []
+    };
+
     // Create system prompt
     const systemPrompt = `You are a helpful AI terminal assistant that can run shell commands and edit files in the user's project.
 Working directory: ${currentDirectory}
@@ -267,19 +294,24 @@ Directory bookmarks:
 6. list_bookmarks - Show all saved directory bookmarks
 7. remove_bookmark - Delete a saved bookmark
 
+Command history:
+8. show_history - Display previous commands and their results
+9. clear_history - Clear command history (all or specific entry)
+10. repeat_command - Repeat a previous command from history
+
 File browser tools:
-8. browse_files - Browse files in a directory with optional filtering and sorting
-9. file_details - Get details about a specific file, including its content
-10. analyze_code - Analyze code in a file to extract information about its structure
+11. browse_files - Browse files in a directory with optional filtering and sorting
+12. file_details - Get details about a specific file, including its content
+13. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-11. git_status - Get the git status of the repository
-12. git_commits - Get recent git commits
-13. git_commit - Create a git commit
-14. git_diff - Get the diff for a file or the entire repository
-15. git_checkout - Perform a git checkout
-16. git_pull - Perform a git pull
-17. git_push - Perform a git push
+14. git_status - Get the git status of the repository
+15. git_commits - Get recent git commits
+16. git_commit - Create a git commit
+17. git_diff - Get the diff for a file or the entire repository
+18. git_checkout - Perform a git checkout
+19. git_pull - Perform a git pull
+20. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -357,7 +389,14 @@ Git operations:
             
             // Execute the tool
             const toolResult = await executeToolCall(lastMessage.name, lastMessage.input);
-            
+
+            // Track tool usage in history
+            historyEntry.tools.push({
+              name: lastMessage.name,
+              input: lastMessage.input,
+              result: toolResult
+            });
+
             // Send tool execution result to UI
             mainWindow?.webContents.send('tool-execution-result', {
               tool: lastMessage.name,
@@ -403,6 +442,12 @@ Git operations:
         finalResponse = 'No response content from assistant';
         waitingForToolResult = false;
       }
+    }
+
+    // Save history entry with assistant response
+    if (finalResponse) {
+      historyEntry.assistantResponse = finalResponse;
+      addHistoryEntry(historyEntry);
     }
 
     return { response: finalResponse };
@@ -501,6 +546,72 @@ async function executeToolCall(
         message: removed
           ? `Bookmark "${toolInput.name}" removed`
           : `Failed to remove bookmark "${toolInput.name}". Bookmark may not exist.`
+      };
+
+    case 'show_history':
+      const limit = toolInput.limit || 10;
+      const offset = toolInput.offset || 0;
+      const search = toolInput.search;
+      const currentDirOnly = toolInput.current_dir_only;
+
+      const historyEntries = getHistory({
+        limit,
+        offset,
+        search,
+        directory: currentDirOnly ? projectDir : undefined
+      });
+
+      return {
+        success: true,
+        message: `Found ${historyEntries.length} history entries`,
+        entries: historyEntries
+      };
+
+    case 'clear_history':
+      if (!toolInput.entry_id && !toolInput.confirm) {
+        return {
+          success: false,
+          message: "Clearing all history requires confirmation. Please set confirm: true to proceed."
+        };
+      }
+
+      const clearedHistory = clearHistory(toolInput.entry_id);
+
+      return {
+        success: clearedHistory,
+        message: clearedHistory
+          ? toolInput.entry_id
+            ? `History entry ${toolInput.entry_id} cleared`
+            : "All command history cleared"
+          : `Failed to clear history ${toolInput.entry_id ? 'entry ' + toolInput.entry_id : ''}`
+      };
+
+    case 'repeat_command':
+      let historyEntry;
+
+      if (toolInput.command_id) {
+        // Find by ID
+        const entries = getHistory();
+        historyEntry = entries.find(entry => entry.id === toolInput.command_id);
+      } else if (toolInput.index) {
+        // Find by index
+        const entries = getHistory({ limit: toolInput.index });
+        historyEntry = entries[toolInput.index - 1];
+      }
+
+      if (!historyEntry) {
+        return {
+          success: false,
+          message: "Could not find the specified command in history"
+        };
+      }
+
+      // For Electron, we'll notify the renderer to repeat the command
+      mainWindow?.webContents.send('repeat-command', historyEntry.userInput);
+
+      return {
+        success: true,
+        message: `Repeating command: ${historyEntry.userInput}`
       };
 
     case 'run_shell':

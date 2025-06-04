@@ -4,6 +4,7 @@ import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
 import { changeDirectory } from './tools/dirTools';
 import { addBookmark, getBookmark, listBookmarks, removeBookmark } from './tools/bookmarks';
+import { addHistoryEntry, getHistory, clearHistory } from './tools/history';
 import readline from 'readline';
 import path from 'path';
 
@@ -116,6 +117,24 @@ interface BookmarkResult {
   }>;
 }
 
+// History results
+interface HistoryResult {
+  success: boolean;
+  message: string;
+  entries?: Array<{
+    id: string;
+    timestamp: number;
+    userInput: string;
+    assistantResponse?: string;
+    directory?: string;
+    tools?: Array<{
+      name: string;
+      input: any;
+      result: any;
+    }>;
+  }>;
+}
+
 // Combined tool result type
 type ToolResult =
   | ShellResult
@@ -125,7 +144,8 @@ type ToolResult =
   | CodeAnalysisResult
   | GitOperationResult
   | DirectoryChangeResult
-  | BookmarkResult;
+  | BookmarkResult
+  | HistoryResult;
 
 export async function startConversation(options: ConversationOptions) {
   console.log(`Starting conversation with ${options.provider} using model ${options.model}`);
@@ -164,19 +184,24 @@ Directory bookmarks:
 6. list_bookmarks - Show all saved directory bookmarks
 7. remove_bookmark - Delete a saved bookmark
 
+Command history:
+8. show_history - Display previous commands and their results
+9. clear_history - Clear command history (all or specific entry)
+10. repeat_command - Repeat a previous command from history
+
 File browser tools:
-8. browse_files - Browse files in a directory with optional filtering and sorting
-9. file_details - Get details about a specific file, including its content
-10. analyze_code - Analyze code in a file to extract information about its structure
+11. browse_files - Browse files in a directory with optional filtering and sorting
+12. file_details - Get details about a specific file, including its content
+13. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-11. git_status - Get the git status of the repository
-12. git_commits - Get recent git commits
-13. git_commit - Create a git commit
-14. git_diff - Get the diff for a file or the entire repository
-15. git_checkout - Perform a git checkout
-16. git_pull - Perform a git pull
-17. git_push - Perform a git push
+14. git_status - Get the git status of the repository
+15. git_commits - Get recent git commits
+16. git_commit - Create a git commit
+17. git_diff - Get the diff for a file or the entire repository
+18. git_checkout - Perform a git checkout
+19. git_pull - Perform a git pull
+20. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -189,6 +214,8 @@ Example 2: If user asks "Create a new file", use edit_file tool with appropriate
 Example 3: If user asks "Let's look at another project", use change_directory tool to switch directories
 Example 4: If user says "Bookmark this directory as 'project'", use bookmark_directory tool
 Example 5: If user says "Go to my project directory", use use_bookmark tool with the bookmark name
+Example 6: If user asks "Show my command history", use show_history tool
+Example 7: If user says "Run the last command again", use repeat_command tool with index 1
 
 NEVER refuse to use tools when they would help complete the user's request.`
     }
@@ -196,21 +223,34 @@ NEVER refuse to use tools when they would help complete the user's request.`
   
   // Main conversation loop
   console.log('\nWelcome to LLM Terminal Agent. Type your request or "exit" to quit.');
-  
+
   let conversationActive = true;
   while (conversationActive) {
     const userInput = await askQuestion(rl, '\nYou: ');
-    
+
     if (userInput.toLowerCase() === 'exit') {
       conversationActive = false;
       continue;
     }
-    
+
+    // Create a history entry for this interaction
+    const historyEntry = {
+      userInput,
+      directory: options.projectDir,
+      tools: []
+    };
+
     // Add user message
     messages.push({ role: 'user', content: userInput });
-    
+
     try {
-      await processChatTurn(client, messages, options);
+      const assistantResponse = await processChatTurn(client, messages, options, historyEntry);
+
+      // Save completed history entry with assistant response
+      if (assistantResponse) {
+        historyEntry.assistantResponse = assistantResponse;
+        addHistoryEntry(historyEntry);
+      }
     } catch (error) {
       console.error('Error processing request:', error);
       messages.push({
@@ -237,9 +277,10 @@ function initializeClient(options: ConversationOptions) {
   }
 }
 
-async function processChatTurn(client: any, messages: Message[], options: ConversationOptions) {
+async function processChatTurn(client: any, messages: Message[], options: ConversationOptions, historyEntry?: any) {
   let waitingForToolResult = true;
-  
+  let assistantResponse = '';
+
   while (waitingForToolResult) {
     try {
       // Format messages for Anthropic API
@@ -254,7 +295,7 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
           return msg;
         }
       });
-      
+
       // Call the API
       const response = await client.messages.create({
         model: options.model,
@@ -264,27 +305,29 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
         messages: userMessages,
         tools: toolDefinitions
       });
-      
+
       // Process the response
       if (response.content && response.content.length > 0) {
         // Find any tool use messages
         const toolUseMessages = response.content.filter((msg: any) => msg.type === 'tool_use');
-        
+
         // Get the appropriate message to process
         const lastMessage = toolUseMessages.length > 0 ? toolUseMessages[0] : response.content[0];
-        
+
         if (lastMessage.type === 'text') {
           // Regular text response
           console.log(`\nAssistant: ${lastMessage.text}`);
           messages.push({ role: 'assistant', content: lastMessage.text });
+          assistantResponse = lastMessage.text;
           waitingForToolResult = false;
         } else if (lastMessage.type === 'tool_use') {
           // First, output the assistant's explanation if there is one
           const textMessages = response.content.filter((msg: any) => msg.type === 'text');
           if (textMessages.length > 0) {
             console.log(`\nAssistant: ${textMessages[0].text}`);
+            assistantResponse += textMessages[0].text + '\n';
           }
-          
+
           // Execute the tool
           try {
             // Add the tool use to the messages
@@ -292,10 +335,19 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
               role: 'assistant',
               content: [lastMessage]
             });
-            
+
             // Execute the tool
             const toolResult = await executeToolCall(lastMessage.name, lastMessage.input, options);
-            
+
+            // Track tool usage in history if provided
+            if (historyEntry && historyEntry.tools) {
+              historyEntry.tools.push({
+                name: lastMessage.name,
+                input: lastMessage.input,
+                result: toolResult
+              });
+            }
+
             // Display the result to the user based on tool type
             if (lastMessage.name === 'run_shell') {
               const shellResult = toolResult as ShellResult;
@@ -307,7 +359,7 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
               const fileResult = toolResult as FileResult;
               console.log(`\nFile Operation Result: ${fileResult.message}`);
             }
-            
+
             // Add the tool result to the messages
             messages.push({
               role: 'user',
@@ -317,19 +369,25 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
                 content: toolResult
               }]
             });
-            
+
+            // If this is a repeat_command tool call, we need to continue the conversation
+            if (lastMessage.name === 'repeat_command') {
+              // Continue processing to handle the repeated command
+              continue;
+            }
+
             // Stop waiting for tool result
             waitingForToolResult = false;
           } catch (error: any) {
             console.error('Error executing tool:', error.message);
             const errorMessage = error.message || 'Unknown error occurred';
-            
+
             // Add the tool use to the messages
             messages.push({
               role: 'assistant',
               content: [lastMessage]
             });
-            
+
             // Add the error result to the messages
             messages.push({
               role: 'user',
@@ -339,7 +397,7 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
                 content: { error: errorMessage }
               }]
             });
-            
+
             // Stop waiting for tool result after error
             waitingForToolResult = false;
           }
@@ -355,12 +413,15 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
     } catch (error) {
       console.error('API Error:', error);
       messages.push({
-        role: 'assistant', 
+        role: 'assistant',
         content: 'Sorry, I encountered an error communicating with the AI service. Please try again.'
       });
+      assistantResponse = 'Sorry, I encountered an error communicating with the AI service. Please try again.';
       waitingForToolResult = false;
     }
   }
+
+  return assistantResponse;
 }
 
 async function executeToolCall(
@@ -435,6 +496,83 @@ async function executeToolCall(
         message: removed
           ? `Bookmark "${toolInput.name}" removed`
           : `Failed to remove bookmark "${toolInput.name}". Bookmark may not exist.`
+      };
+
+    case 'show_history':
+      console.log(`\n[Showing command history]`);
+      const limit = toolInput.limit || 10;
+      const offset = toolInput.offset || 0;
+      const search = toolInput.search;
+      const currentDirOnly = toolInput.current_dir_only;
+
+      const historyEntries = getHistory({
+        limit,
+        offset,
+        search,
+        directory: currentDirOnly ? options.projectDir : undefined
+      });
+
+      return {
+        success: true,
+        message: `Found ${historyEntries.length} history entries`,
+        entries: historyEntries
+      };
+
+    case 'clear_history':
+      if (!toolInput.entry_id && !toolInput.confirm) {
+        return {
+          success: false,
+          message: "Clearing all history requires confirmation. Please set confirm: true to proceed."
+        };
+      }
+
+      console.log(`\n[Clearing ${toolInput.entry_id ? 'history entry: ' + toolInput.entry_id : 'all command history'}]`);
+      const clearedHistory = clearHistory(toolInput.entry_id);
+
+      return {
+        success: clearedHistory,
+        message: clearedHistory
+          ? toolInput.entry_id
+            ? `History entry ${toolInput.entry_id} cleared`
+            : "All command history cleared"
+          : `Failed to clear history ${toolInput.entry_id ? 'entry ' + toolInput.entry_id : ''}`
+      };
+
+    case 'repeat_command':
+      console.log(`\n[Repeating command from history]`);
+      let historyEntry;
+
+      if (toolInput.command_id) {
+        // Find by ID
+        const entries = getHistory();
+        historyEntry = entries.find(entry => entry.id === toolInput.command_id);
+      } else if (toolInput.index) {
+        // Find by index
+        const entries = getHistory({ limit: toolInput.index });
+        historyEntry = entries[toolInput.index - 1];
+      }
+
+      if (!historyEntry) {
+        return {
+          success: false,
+          message: "Could not find the specified command in history"
+        };
+      }
+
+      console.log(`\n[Repeating command: ${historyEntry.userInput}]`);
+
+      // Add a special message to indicate this is a repeated command
+      messages.push({
+        role: 'system',
+        content: `Repeating the previous command: "${historyEntry.userInput}"`
+      });
+
+      // Add the user message from history
+      messages.push({ role: 'user', content: historyEntry.userInput });
+
+      return {
+        success: true,
+        message: `Repeating command: ${historyEntry.userInput}`
       };
 
     case 'run_shell':

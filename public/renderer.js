@@ -51,6 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDirectoryDisplay(directory);
   });
 
+  window.api.onRepeatCommand((command) => {
+    // Fill the input field with the command
+    userInput.value = command;
+    // Automatically send the command
+    handleSendMessage();
+  });
+
   // Get initial directory
   window.api.getCurrentDirectory().then(directory => {
     updateDirectoryDisplay(directory);
@@ -146,6 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
       content += `<div class="tool-command">Listing saved directory bookmarks</div>`;
     } else if (data.tool === 'remove_bookmark') {
       content += `<div class="tool-command">Removing bookmark: ${data.input.name}</div>`;
+    } else if (data.tool === 'show_history') {
+      content += `<div class="tool-command">Showing command history${data.input.limit ? ` (limit: ${data.input.limit})` : ''}${data.input.search ? ` matching: "${data.input.search}"` : ''}</div>`;
+    } else if (data.tool === 'clear_history') {
+      content += `<div class="tool-command">Clearing ${data.input.entry_id ? `history entry: ${data.input.entry_id}` : 'all command history'}</div>`;
+    } else if (data.tool === 'repeat_command') {
+      content += `<div class="tool-command">Repeating command: ${data.input.command_id ? `ID ${data.input.command_id}` : `#${data.input.index}`}</div>`;
     }
     
     toolEl.innerHTML = content;
@@ -202,10 +215,51 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.result.success && data.result.newDirectory) {
         updateDirectoryDisplay(data.result.newDirectory);
       }
-    } else if (data.tool === 'bookmark_directory' || data.tool === 'remove_bookmark') {
+    } else if (data.tool === 'bookmark_directory' || data.tool === 'remove_bookmark' ||
+               data.tool === 'clear_history' || data.tool === 'repeat_command') {
       const resultEl = document.createElement('div');
       resultEl.className = 'tool-output';
       resultEl.textContent = data.result.message;
+      toolEl.appendChild(resultEl);
+    } else if (data.tool === 'show_history' && data.result.entries) {
+      const resultEl = document.createElement('div');
+      resultEl.className = 'tool-output';
+
+      if (data.result.entries.length === 0) {
+        resultEl.textContent = 'No history entries found.';
+      } else {
+        const historyList = document.createElement('ul');
+        historyList.className = 'history-list';
+
+        data.result.entries.forEach((entry, idx) => {
+          const formattedDate = new Date(entry.timestamp).toLocaleString();
+          const li = document.createElement('li');
+
+          const header = document.createElement('div');
+          header.className = 'history-entry-header';
+          header.innerHTML = `<strong>#${idx + 1}</strong> (${formattedDate}) - <span class="history-id">${entry.id}</span>`;
+
+          const command = document.createElement('div');
+          command.className = 'history-command';
+          command.textContent = entry.userInput;
+
+          li.appendChild(header);
+          li.appendChild(command);
+
+          if (entry.tools && entry.tools.length > 0) {
+            const toolsUsed = document.createElement('div');
+            toolsUsed.className = 'history-tools';
+            toolsUsed.textContent = `Tools used: ${entry.tools.map(t => t.name).join(', ')}`;
+            li.appendChild(toolsUsed);
+          }
+
+          historyList.appendChild(li);
+        });
+
+        resultEl.textContent = `Found ${data.result.entries.length} history entries:`;
+        resultEl.appendChild(historyList);
+      }
+
       toolEl.appendChild(resultEl);
     } else if (data.tool === 'list_bookmarks' && data.result.bookmarks) {
       const resultEl = document.createElement('div');

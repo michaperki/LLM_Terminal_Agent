@@ -3,6 +3,73 @@
 export const toolDefinitions = [
   {
     type: 'custom',
+    name: 'show_history',
+    description: 'Show previous commands and interactions',
+    input_schema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Maximum number of history entries to return (default: 10)'
+        },
+        offset: {
+          type: 'number',
+          description: 'Number of entries to skip (for pagination)'
+        },
+        search: {
+          type: 'string',
+          description: 'Search term to filter history by'
+        },
+        current_dir_only: {
+          type: 'boolean',
+          description: 'Only show history for the current directory'
+        }
+      }
+    }
+  },
+  {
+    type: 'custom',
+    name: 'clear_history',
+    description: 'Clear command history',
+    input_schema: {
+      type: 'object',
+      properties: {
+        entry_id: {
+          type: 'string',
+          description: 'ID of specific history entry to clear (omit to clear all history)'
+        },
+        confirm: {
+          type: 'boolean',
+          description: 'Confirmation for clearing all history',
+          default: false
+        }
+      }
+    }
+  },
+  {
+    type: 'custom',
+    name: 'repeat_command',
+    description: 'Repeat a previous command',
+    input_schema: {
+      type: 'object',
+      properties: {
+        command_id: {
+          type: 'string',
+          description: 'ID of the command to repeat from history'
+        },
+        index: {
+          type: 'number',
+          description: 'Index of the command to repeat (e.g., 1 for most recent, 2 for second most recent)'
+        }
+      },
+      oneOf: [
+        { required: ['command_id'] },
+        { required: ['index'] }
+      ]
+    }
+  },
+  {
+    type: 'custom',
     name: 'change_directory',
     description: 'Change the current working directory for the session',
     input_schema: {
