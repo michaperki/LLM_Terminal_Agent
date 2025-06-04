@@ -364,6 +364,7 @@ Working directory: ${currentDirectory}
 IMPORTANT: You MUST USE TOOLS to complete user requests. DO NOT just think about using tools - actually use them.
 When users ask for information about files or the system, ALWAYS use the appropriate tool.
 When users want to create or modify files, ALWAYS use the edit_file tool.
+Never stop after a diagnostic step (e.g. list_bookmarks) if the original task isn't finished. Continue invoking tools until the user's request is satisfied or you truly need clarification.
 
 You have access to the following tools:
 
@@ -403,6 +404,34 @@ Git operations:
 23. git_checkout - Perform a git checkout
 24. git_pull - Perform a git pull
 25. git_push - Perform a git push
+
+WORKFLOW GUIDANCE - For complex tasks, follow these steps:
+1. PLAN: Identify all required steps before taking action
+2. EXECUTE: Run each step in sequence, using appropriate tools
+3. VERIFY: Check the result of each step before proceeding
+4. ADAPT: If a step fails, adjust your approach based on error messages
+
+Example multi-step workflows:
+- When asked to update a file:
+  1. First use browse_files to locate the file
+  2. Then use file_details to examine the current content
+  3. Plan your changes carefully based on the file structure and purpose
+  4. Use edit_file to implement the change
+  5. Verify the change was successful
+
+- When exploring an unfamiliar codebase:
+  1. Use browse_files to explore the directory structure
+  2. Use analyze_code on key files to understand patterns
+  3. Use file_details to examine specific implementations
+  4. Make changes that follow existing patterns
+
+- When setting up a new project feature:
+  1. Use browse_files to understand the project structure
+  2. Use file_details to examine related files
+  3. Use analyze_code to understand dependencies
+  4. Create needed files with edit_file
+  5. Update existing files to connect the new feature
+  6. Test the changes
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -507,6 +536,9 @@ Git operations:
                 content: toolResult
               }])
             });
+
+            // Continue the tool chain - don't stop after diagnostic tools
+            continue;
             
           } catch (error: any) {
             const errorMessage = error.message || 'Unknown error occurred';
@@ -526,6 +558,9 @@ Git operations:
                 content: { error: errorMessage }
               }])
             });
+
+            // Continue the tool chain even after errors
+            continue;
           }
         } else {
           // Unexpected response type
