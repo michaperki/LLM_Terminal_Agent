@@ -3,6 +3,21 @@
 export const toolDefinitions = [
   {
     type: 'custom',
+    name: 'change_directory',
+    description: 'Change the current working directory for the session',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'The path to change to (absolute or relative to current directory)'
+        }
+      },
+      required: ['path']
+    }
+  },
+  {
+    type: 'custom',
     name: 'run_shell',
     description: 'Execute a shell command in the project directory and capture stdout/stderr/exit_code',
     input_schema: {

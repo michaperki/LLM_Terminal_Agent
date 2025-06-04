@@ -2,7 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { toolDefinitions } from './tools/definitions';
 import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
+import { changeDirectory } from './tools/dirTools';
 import readline from 'readline';
+import path from 'path';
 
 // Import browser tools
 import {
@@ -93,8 +95,16 @@ interface GitOperationResult {
   data?: any;
 }
 
+// Directory change result
+interface DirectoryChangeResult {
+  success: boolean;
+  message: string;
+  oldDirectory: string;
+  newDirectory: string;
+}
+
 // Combined tool result type
-type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult;
+type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult | DirectoryChangeResult;
 
 export async function startConversation(options: ConversationOptions) {
   console.log(`Starting conversation with ${options.provider} using model ${options.model}`);
@@ -117,28 +127,29 @@ export async function startConversation(options: ConversationOptions) {
 Working directory: ${options.projectDir}
 
 IMPORTANT: You MUST USE TOOLS to complete user requests. DO NOT just think about using tools - actually use them.
-When users ask for information about files or the system, ALWAYS use the run_shell tool.
+When users ask for information about files or the system, ALWAYS use the appropriate tool.
 When users want to create or modify files, ALWAYS use the edit_file tool.
 
 You have access to the following tools:
 
 Basic tools:
-1. run_shell - Execute shell commands in the project directory
-2. edit_file - Edit file contents using path and content
+1. change_directory - Change the current working directory for the session
+2. run_shell - Execute shell commands in the project directory
+3. edit_file - Edit file contents using path and content
 
 File browser tools:
-3. browse_files - Browse files in a directory with optional filtering and sorting
-4. file_details - Get details about a specific file, including its content
-5. analyze_code - Analyze code in a file to extract information about its structure
+4. browse_files - Browse files in a directory with optional filtering and sorting
+5. file_details - Get details about a specific file, including its content
+6. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-6. git_status - Get the git status of the repository
-7. git_commits - Get recent git commits
-8. git_commit - Create a git commit
-9. git_diff - Get the diff for a file or the entire repository
-10. git_checkout - Perform a git checkout
-11. git_pull - Perform a git pull
-12. git_push - Perform a git push
+7. git_status - Get the git status of the repository
+8. git_commits - Get recent git commits
+9. git_commit - Create a git commit
+10. git_diff - Get the diff for a file or the entire repository
+11. git_checkout - Perform a git checkout
+12. git_pull - Perform a git pull
+13. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -148,6 +159,7 @@ Git operations:
 
 Example 1: If user asks "What files are in this directory?", use run_shell tool with command "ls -la"
 Example 2: If user asks "Create a new file", use edit_file tool with appropriate path and content
+Example 3: If user asks "Let's look at another project", use change_directory tool to switch directories
 
 NEVER refuse to use tools when they would help complete the user's request.`
     }
@@ -328,6 +340,16 @@ async function executeToolCall(
   options: ConversationOptions
 ): Promise<ToolResult> {
   switch (toolName) {
+    case 'change_directory':
+      console.log(`\n[Changing directory to: ${toolInput.path}]`);
+      const dirResult = await changeDirectory(toolInput.path, options.projectDir);
+      if (dirResult.success) {
+        // Update the project directory in options
+        options.projectDir = dirResult.newDirectory;
+        console.log(`\nSuccessfully changed directory to: ${options.projectDir}`);
+      }
+      return dirResult;
+
     case 'run_shell':
       console.log(`\n[Executing command: ${toolInput.command}]`);
       return await executeShellCommand(toolInput.command, options.projectDir, options.useSandbox);

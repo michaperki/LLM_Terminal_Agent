@@ -1,9 +1,12 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import os from 'os';
 import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
+import { changeDirectory, getCurrentDirectoryInfo } from './tools/dirTools';
 import { toolDefinitions } from './tools/definitions';
 import {
   browseFiles,
@@ -20,6 +23,38 @@ import {
 
 // Load environment variables
 dotenv.config();
+
+// Load config from .llmterminalrc file if it exists
+const loadConfig = () => {
+  const configPath = path.join(os.homedir(), '.llmterminalrc');
+  try {
+    const configData = fs.readFileSync(configPath, 'utf8');
+    return JSON.parse(configData);
+  } catch {
+    return {};
+  }
+};
+
+const config = loadConfig();
+const defaultDir = config.defaultDirectory || process.cwd();
+
+// Check if a path is allowed (e.g., prevent access to sensitive directories)
+function isPathAllowed(dirPath: string): boolean {
+  const restrictedPaths = [
+    '/etc', '/var/lib', '/boot', '/usr/bin',
+    'C:\\Windows', 'C:\\Program Files'
+  ];
+
+  const normalizedPath = path.normalize(dirPath);
+
+  return !restrictedPaths.some(restricted =>
+    normalizedPath === restricted ||
+    normalizedPath.startsWith(`${restricted}${path.sep}`)
+  );
+}
+
+// Current working directory for the project
+let currentDirectory = defaultDir;
 
 // Define types
 type ShellResult = {
@@ -80,8 +115,16 @@ interface GitOperationResult {
   data?: any;
 }
 
+// Directory change result
+interface DirectoryChangeResult {
+  success: boolean;
+  message: string;
+  oldDirectory: string;
+  newDirectory: string;
+}
+
 // Combined tool result type
-type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult;
+type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult | DirectoryChangeResult;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -128,6 +171,53 @@ app.on('activate', () => {
   }
 });
 
+// Handle directory selection
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Project Directory',
+    defaultPath: currentDirectory
+  });
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    const selectedDir = result.filePaths[0];
+
+    // Check if the directory is allowed
+    if (!isPathAllowed(selectedDir)) {
+      return {
+        success: false,
+        error: 'Access to this directory is restricted for security reasons'
+      };
+    }
+
+    // Update current directory
+    currentDirectory = selectedDir;
+
+    // Save last used directory for future sessions
+    const historyPath = path.join(os.homedir(), '.llmterminal_history');
+    try {
+      fs.writeFileSync(historyPath, JSON.stringify({ lastDir: selectedDir }));
+    } catch {
+      // Ignore errors in saving history
+    }
+
+    return {
+      success: true,
+      directory: selectedDir
+    };
+  }
+
+  return {
+    success: false,
+    error: 'No directory selected'
+  };
+});
+
+// Get current directory
+ipcMain.handle('get-current-directory', () => {
+  return currentDirectory;
+});
+
 // Handle IPC communication for sending messages to the LLM
 ipcMain.handle('send-message', async (event, message: string) => {
   try {
@@ -137,7 +227,7 @@ ipcMain.handle('send-message', async (event, message: string) => {
 
     // Create system prompt
     const systemPrompt = `You are a helpful AI terminal assistant that can run shell commands and edit files in the user's project.
-Working directory: ${process.cwd()}
+Working directory: ${currentDirectory}
 
 IMPORTANT: You MUST USE TOOLS to complete user requests. DO NOT just think about using tools - actually use them.
 When users ask for information about files or the system, ALWAYS use the appropriate tool.
@@ -146,22 +236,23 @@ When users want to create or modify files, ALWAYS use the edit_file tool.
 You have access to the following tools:
 
 Basic tools:
-1. run_shell - Execute shell commands in the project directory
-2. edit_file - Edit file contents using path and content
+1. change_directory - Change the current working directory for the session
+2. run_shell - Execute shell commands in the project directory
+3. edit_file - Edit file contents using path and content
 
 File browser tools:
-3. browse_files - Browse files in a directory with optional filtering and sorting
-4. file_details - Get details about a specific file, including its content
-5. analyze_code - Analyze code in a file to extract information about its structure
+4. browse_files - Browse files in a directory with optional filtering and sorting
+5. file_details - Get details about a specific file, including its content
+6. analyze_code - Analyze code in a file to extract information about its structure
 
 Git operations:
-6. git_status - Get the git status of the repository
-7. git_commits - Get recent git commits
-8. git_commit - Create a git commit
-9. git_diff - Get the diff for a file or the entire repository
-10. git_checkout - Perform a git checkout
-11. git_pull - Perform a git pull
-12. git_push - Perform a git push
+7. git_status - Get the git status of the repository
+8. git_commits - Get recent git commits
+9. git_commit - Create a git commit
+10. git_diff - Get the diff for a file or the entire repository
+11. git_checkout - Perform a git checkout
+12. git_pull - Perform a git pull
+13. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -299,9 +390,28 @@ async function executeToolCall(
   toolName: string,
   toolInput: any
 ): Promise<ToolResult> {
-  const projectDir = process.cwd();
+  const projectDir = currentDirectory;
 
   switch (toolName) {
+    case 'change_directory':
+      const dirResult = await changeDirectory(toolInput.path, projectDir);
+      if (dirResult.success) {
+        // Update the current directory
+        currentDirectory = dirResult.newDirectory;
+
+        // Notify the renderer about the directory change
+        mainWindow?.webContents.send('directory-changed', currentDirectory);
+
+        // Save the last used directory
+        const historyPath = path.join(os.homedir(), '.llmterminal_history');
+        try {
+          fs.writeFileSync(historyPath, JSON.stringify({ lastDir: currentDirectory }));
+        } catch {
+          // Ignore errors in saving history
+        }
+      }
+      return dirResult;
+
     case 'run_shell':
       return await executeShellCommand(toolInput.command, projectDir, false);
 
