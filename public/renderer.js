@@ -168,50 +168,151 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolEl = document.createElement('div');
     toolEl.className = 'tool-execution';
     toolEl.id = `tool-${Date.now()}`;
-    
-    let content = `<div class="tool-header">Executing: ${data.tool}</div>`;
-    
-    if (data.tool === 'run_shell') {
-      content += `<div class="tool-command">${data.input.command}</div>`;
-      content += `<div class="tool-output">Running command...</div>`;
-    } else if (data.tool === 'edit_file') {
-      content += `<div class="tool-command">Editing file: ${data.input.path}</div>`;
-    } else if (data.tool === 'change_directory') {
-      content += `<div class="tool-command">Changing directory to: ${data.input.path}</div>`;
-    } else if (data.tool === 'bookmark_directory') {
-      content += `<div class="tool-command">Bookmarking directory as: ${data.input.name}</div>`;
-    } else if (data.tool === 'use_bookmark') {
-      content += `<div class="tool-command">Changing to bookmarked directory: ${data.input.name}</div>`;
-    } else if (data.tool === 'list_bookmarks') {
-      content += `<div class="tool-command">Listing saved directory bookmarks</div>`;
-    } else if (data.tool === 'remove_bookmark') {
-      content += `<div class="tool-command">Removing bookmark: ${data.input.name}</div>`;
-    } else if (data.tool === 'show_history') {
-      content += `<div class="tool-command">Showing command history${data.input.limit ? ` (limit: ${data.input.limit})` : ''}${data.input.search ? ` matching: "${data.input.search}"` : ''}</div>`;
-    } else if (data.tool === 'clear_history') {
-      content += `<div class="tool-command">Clearing ${data.input.entry_id ? `history entry: ${data.input.entry_id}` : 'all command history'}</div>`;
-    } else if (data.tool === 'repeat_command') {
-      content += `<div class="tool-command">Repeating command: ${data.input.command_id ? `ID ${data.input.command_id}` : `#${data.input.index}`}</div>`;
-    } else if (data.tool === 'get_config') {
-      content += `<div class="tool-command">Getting project configuration</div>`;
-    } else if (data.tool === 'update_config') {
-      content += `<div class="tool-command">Updating configuration settings: ${JSON.stringify(data.input.settings)}</div>`;
-    } else if (data.tool === 'add_custom_command') {
-      content += `<div class="tool-command">Adding custom command: ${data.input.name} (${data.input.description})</div>`;
-    } else if (data.tool === 'run_custom_command') {
-      content += `<div class="tool-command">Running custom command: ${data.input.name}</div>`;
+
+    // Create a more descriptive header based on the tool type
+    let toolTitle;
+
+    switch(data.tool) {
+      case 'run_shell':
+        toolTitle = 'Executing Shell Command';
+        break;
+      case 'edit_file':
+        toolTitle = 'Editing File';
+        break;
+      case 'change_directory':
+        toolTitle = 'Changing Directory';
+        break;
+      case 'bookmark_directory':
+        toolTitle = 'Saving Directory Bookmark';
+        break;
+      case 'use_bookmark':
+        toolTitle = 'Using Bookmark';
+        break;
+      case 'list_bookmarks':
+        toolTitle = 'Listing Bookmarks';
+        break;
+      case 'remove_bookmark':
+        toolTitle = 'Removing Bookmark';
+        break;
+      case 'show_history':
+        toolTitle = 'Showing Command History';
+        break;
+      case 'clear_history':
+        toolTitle = 'Clearing History';
+        break;
+      case 'repeat_command':
+        toolTitle = 'Repeating Command';
+        break;
+      case 'get_config':
+        toolTitle = 'Getting Project Configuration';
+        break;
+      case 'update_config':
+        toolTitle = 'Updating Configuration';
+        break;
+      case 'add_custom_command':
+        toolTitle = 'Adding Custom Command';
+        break;
+      case 'run_custom_command':
+        toolTitle = 'Running Custom Command';
+        break;
+      case 'remove_custom_command':
+        toolTitle = 'Removing Custom Command';
+        break;
+      case 'browse_files':
+        toolTitle = 'Browsing Files';
+        break;
+      case 'file_details':
+        toolTitle = 'Getting File Details';
+        break;
+      case 'analyze_code':
+        toolTitle = 'Analyzing Code';
+        break;
+      default:
+        toolTitle = `Executing: ${data.tool}`;
     }
-    
-    toolEl.innerHTML = content;
+
+    // Create header
+    const headerEl = document.createElement('div');
+    headerEl.className = 'tool-header';
+    headerEl.textContent = toolTitle;
+    toolEl.appendChild(headerEl);
+
+    // Create command/input display
+    const commandEl = document.createElement('div');
+    commandEl.className = 'tool-command';
+
+    if (data.tool === 'run_shell') {
+      commandEl.textContent = data.input.command;
+    } else if (data.tool === 'edit_file') {
+      commandEl.textContent = `File: ${data.input.path}`;
+    } else if (data.tool === 'change_directory') {
+      commandEl.textContent = `Path: ${data.input.path}`;
+    } else if (data.tool === 'bookmark_directory') {
+      commandEl.textContent = `Name: ${data.input.name}${data.input.path ? `, Path: ${data.input.path}` : ''}`;
+    } else if (data.tool === 'use_bookmark') {
+      commandEl.textContent = `Bookmark: ${data.input.name}`;
+    } else if (data.tool === 'list_bookmarks') {
+      commandEl.textContent = `Listing all bookmarks`;
+    } else if (data.tool === 'remove_bookmark') {
+      commandEl.textContent = `Name: ${data.input.name}`;
+    } else if (data.tool === 'show_history') {
+      commandEl.textContent = `Limit: ${data.input.limit || 'default'}${data.input.search ? `, Search: "${data.input.search}"` : ''}${data.input.current_dir_only ? ', Current directory only' : ''}`;
+    } else if (data.tool === 'clear_history') {
+      commandEl.textContent = data.input.entry_id ? `Entry ID: ${data.input.entry_id}` : 'All history';
+    } else if (data.tool === 'repeat_command') {
+      commandEl.textContent = data.input.command_id ? `Command ID: ${data.input.command_id}` : `Index: ${data.input.index}`;
+    } else if (data.tool === 'get_config') {
+      commandEl.textContent = `Getting current project configuration`;
+    } else if (data.tool === 'update_config') {
+      commandEl.textContent = `Settings: ${JSON.stringify(data.input.settings, null, 2)}`;
+    } else if (data.tool === 'add_custom_command') {
+      commandEl.textContent = `Name: ${data.input.name}, Description: ${data.input.description}`;
+    } else if (data.tool === 'run_custom_command') {
+      commandEl.textContent = `Command: ${data.input.name}`;
+    } else if (data.tool === 'remove_custom_command') {
+      commandEl.textContent = `Command: ${data.input.name}`;
+    } else {
+      commandEl.textContent = JSON.stringify(data.input, null, 2);
+    }
+
+    toolEl.appendChild(commandEl);
+
+    // Add placeholder for output if it's a shell command
+    if (data.tool === 'run_shell') {
+      const outputPlaceholder = document.createElement('div');
+      outputPlaceholder.className = 'tool-output';
+      outputPlaceholder.textContent = 'Running command...';
+      toolEl.appendChild(outputPlaceholder);
+    }
+
     chatContainer.appendChild(toolEl);
     scrollToBottom();
   }
   
   function addToolExecutionResult(data) {
     // Try to find existing tool execution element
-    const toolEl = document.getElementById(`tool-${Date.now()}`) || 
-                  document.querySelector('.tool-execution:last-child');
-    
+    // Instead of using Date.now() (which will almost never match),
+    // find the last tool execution element for this specific tool
+    const allToolEls = document.querySelectorAll('.tool-execution');
+    let toolEl = null;
+
+    // Start from the end (most recent) and find the matching tool element
+    for (let i = allToolEls.length - 1; i >= 0; i--) {
+      const el = allToolEls[i];
+      const header = el.querySelector('.tool-header');
+
+      // Match based on tool type in the header
+      if (header && getToolTypeFromHeader(header.textContent) === data.tool) {
+        toolEl = el;
+        break;
+      }
+    }
+
+    // If still not found, fall back to the last element
+    if (!toolEl) {
+      toolEl = document.querySelector('.tool-execution:last-child');
+    }
+
     if (!toolEl) {
       // Create new element if not found
       addToolExecutionStart(data);
@@ -220,39 +321,107 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       updateToolExecutionContent(toolEl, data);
     }
-    
+
     scrollToBottom();
+  }
+
+  // Helper function to get tool type from header text
+  function getToolTypeFromHeader(headerText) {
+    if (headerText.includes('Shell Command')) return 'run_shell';
+    if (headerText.includes('Editing File')) return 'edit_file';
+    if (headerText.includes('Changing Directory')) return 'change_directory';
+    if (headerText.includes('Saving Directory Bookmark')) return 'bookmark_directory';
+    if (headerText.includes('Using Bookmark')) return 'use_bookmark';
+    if (headerText.includes('Listing Bookmarks')) return 'list_bookmarks';
+    if (headerText.includes('Removing Bookmark')) return 'remove_bookmark';
+    if (headerText.includes('Showing Command History')) return 'show_history';
+    if (headerText.includes('Clearing History')) return 'clear_history';
+    if (headerText.includes('Repeating Command')) return 'repeat_command';
+    if (headerText.includes('Getting Project Configuration')) return 'get_config';
+    if (headerText.includes('Updating Configuration')) return 'update_config';
+    if (headerText.includes('Adding Custom Command')) return 'add_custom_command';
+    if (headerText.includes('Running Custom Command')) return 'run_custom_command';
+    if (headerText.includes('Removing Custom Command')) return 'remove_custom_command';
+    if (headerText.includes('Browsing Files')) return 'browse_files';
+    if (headerText.includes('Getting File Details')) return 'file_details';
+    if (headerText.includes('Analyzing Code')) return 'analyze_code';
+
+    // Extract tool name from default format "Executing: tool_name"
+    const match = headerText.match(/Executing: (\w+)/);
+    return match ? match[1] : '';
   }
   
   function updateToolExecutionContent(toolEl, data) {
-    if (data.tool === 'run_shell') {
-      const outputEl = toolEl.querySelector('.tool-output');
-      if (outputEl) {
-        outputEl.textContent = data.result.stdout;
-      } else {
-        const newOutputEl = document.createElement('div');
-        newOutputEl.className = 'tool-output';
-        newOutputEl.textContent = data.result.stdout;
-        toolEl.appendChild(newOutputEl);
-      }
+    // Clear any existing placeholder output
+    const existingOutput = toolEl.querySelector('.tool-output');
+    if (existingOutput && existingOutput.textContent === 'Running command...') {
+      existingOutput.remove();
+    }
 
+    // Create status indicator
+    let statusEl = toolEl.querySelector('.tool-status');
+    if (!statusEl) {
+      statusEl = document.createElement('div');
+      statusEl.className = 'tool-status';
+      // Insert status after the header but before command
+      const headerEl = toolEl.querySelector('.tool-header');
+      if (headerEl && headerEl.nextSibling) {
+        toolEl.insertBefore(statusEl, headerEl.nextSibling);
+      } else {
+        toolEl.appendChild(statusEl);
+      }
+    }
+
+    // Update status based on result
+    if (data.result && data.result.success === false) {
+      statusEl.textContent = '❌ Failed';
+      statusEl.style.color = '#d9534f';
+    } else {
+      statusEl.textContent = '✅ Success';
+      statusEl.style.color = '#28a745';
+    }
+
+    // Display result based on tool type
+    if (data.tool === 'run_shell') {
+      // Create or update output element
+      let outputEl = toolEl.querySelector('.tool-output');
+      if (!outputEl) {
+        outputEl = document.createElement('div');
+        outputEl.className = 'tool-output';
+        toolEl.appendChild(outputEl);
+      }
+      outputEl.textContent = data.result.stdout;
+
+      // Add stderr if present
       if (data.result.stderr) {
-        const errorEl = document.createElement('div');
-        errorEl.className = 'tool-error';
+        let errorEl = toolEl.querySelector('.tool-error');
+        if (!errorEl) {
+          errorEl = document.createElement('div');
+          errorEl.className = 'tool-error';
+          toolEl.appendChild(errorEl);
+        }
         errorEl.textContent = data.result.stderr;
-        toolEl.appendChild(errorEl);
       }
     } else if (data.tool === 'edit_file') {
-      const resultEl = document.createElement('div');
-      resultEl.className = 'tool-output';
+      // Create or update result element
+      let resultEl = toolEl.querySelector('.tool-output');
+      if (!resultEl) {
+        resultEl = document.createElement('div');
+        resultEl.className = 'tool-output';
+        toolEl.appendChild(resultEl);
+      }
       resultEl.textContent = data.result.message;
-      toolEl.appendChild(resultEl);
     } else if (data.tool === 'change_directory' || data.tool === 'use_bookmark') {
-      const resultEl = document.createElement('div');
-      resultEl.className = 'tool-output';
+      // Create or update result element
+      let resultEl = toolEl.querySelector('.tool-output');
+      if (!resultEl) {
+        resultEl = document.createElement('div');
+        resultEl.className = 'tool-output';
+        toolEl.appendChild(resultEl);
+      }
       resultEl.textContent = data.result.message;
-      toolEl.appendChild(resultEl);
 
+      // Update directory display if successful
       if (data.result.success && data.result.newDirectory) {
         updateDirectoryDisplay(data.result.newDirectory);
       }

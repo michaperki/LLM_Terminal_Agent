@@ -215,28 +215,62 @@ body {
   font-family: monospace;
   font-size: 0.9rem;
   overflow-x: auto;
+  display: block;
+  width: auto;
+  height: auto;
+  max-height: none;
+  min-height: 80px;
 }
 
 .tool-execution .tool-header {
   font-weight: bold;
   margin-bottom: 5px;
   color: #4a69bd;
+  font-size: 1.1em;
+}
+
+.tool-execution .tool-status {
+  display: inline-block;
+  margin-right: 5px;
+  margin-bottom: 8px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-weight: bold;
 }
 
 .tool-execution .tool-command {
   background-color: #eee;
-  padding: 5px;
+  padding: 8px;
   border-radius: 3px;
   margin-bottom: 10px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tool-execution .tool-output {
   white-space: pre-wrap;
   word-wrap: break-word;
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .tool-execution .tool-error {
   color: #d9534f;
+  padding: 5px;
+  margin-top: 5px;
+  background-color: #ffeeee;
+  border-left: 3px solid #d9534f;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .input-container {
