@@ -48,7 +48,53 @@ type FileResult = {
   edit_type: string;
 };
 
-type ToolResult = ShellResult | FileResult;
+// Browser tool result types
+interface FileBrowserResult {
+  currentPath: string;
+  items: Array<{
+    name: string;
+    path: string;
+    type: 'file' | 'directory';
+    size: number;
+    modified: string;
+    extension: string;
+  }>;
+  error?: string;
+}
+
+interface FileDetailsResult {
+  file: {
+    name: string;
+    path: string;
+    type: 'file' | 'directory';
+    size: number;
+    modified: string;
+    extension: string;
+  } | null;
+  content?: string;
+  error?: string;
+}
+
+interface CodeAnalysisResult {
+  language: string;
+  lineCount: number;
+  charCount: number;
+  syntaxValid: boolean;
+  imports: string[];
+  functions: string[];
+  classes: string[];
+  error?: string;
+}
+
+// Git operation result
+interface GitOperationResult {
+  success: boolean;
+  message: string;
+  data?: any;
+}
+
+// Combined tool result type
+type ToolResult = ShellResult | FileResult | FileBrowserResult | FileDetailsResult | CodeAnalysisResult | GitOperationResult;
 
 export async function startConversation(options: ConversationOptions) {
   console.log(`Starting conversation with ${options.provider} using model ${options.model}`);
