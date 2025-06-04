@@ -4,6 +4,20 @@ import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
 import readline from 'readline';
 
+// Import browser tools
+import {
+  browseFiles,
+  getFileDetails,
+  analyzeCode,
+  getGitStatus,
+  getGitCommits,
+  createGitCommit,
+  getGitDiff,
+  gitCheckout,
+  gitPull,
+  gitPush
+} from './tools/browser';
+
 // Types
 export interface ConversationOptions {
   model: string;
@@ -61,8 +75,24 @@ When users ask for information about files or the system, ALWAYS use the run_she
 When users want to create or modify files, ALWAYS use the edit_file tool.
 
 You have access to the following tools:
+
+Basic tools:
 1. run_shell - Execute shell commands in the project directory
 2. edit_file - Edit file contents using path and content
+
+File browser tools:
+3. browse_files - Browse files in a directory with optional filtering and sorting
+4. file_details - Get details about a specific file, including its content
+5. analyze_code - Analyze code in a file to extract information about its structure
+
+Git operations:
+6. git_status - Get the git status of the repository
+7. git_commits - Get recent git commits
+8. git_commit - Create a git commit
+9. git_diff - Get the diff for a file or the entire repository
+10. git_checkout - Perform a git checkout
+11. git_pull - Perform a git pull
+12. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -247,19 +277,70 @@ async function processChatTurn(client: any, messages: Message[], options: Conver
 }
 
 async function executeToolCall(
-  toolName: string, 
-  toolInput: any, 
+  toolName: string,
+  toolInput: any,
   options: ConversationOptions
 ): Promise<ToolResult> {
   switch (toolName) {
     case 'run_shell':
       console.log(`\n[Executing command: ${toolInput.command}]`);
       return await executeShellCommand(toolInput.command, options.projectDir, options.useSandbox);
-      
+
     case 'edit_file':
       console.log(`\n[Editing file: ${toolInput.path}]`);
       return await editFile(toolInput.path, toolInput.content, options.projectDir);
-      
+
+    // File browser tools
+    case 'browse_files':
+      console.log(`\n[Browsing directory: ${toolInput.directory}]`);
+      return await browseFiles(
+        toolInput.directory,
+        options.projectDir,
+        {
+          showHidden: toolInput.show_hidden,
+          filter: toolInput.filter,
+          sort: toolInput.sort,
+          sortDirection: toolInput.sort_direction
+        }
+      );
+
+    case 'file_details':
+      console.log(`\n[Getting file details: ${toolInput.path}]`);
+      return await getFileDetails(toolInput.path, options.projectDir);
+
+    case 'analyze_code':
+      console.log(`\n[Analyzing code: ${toolInput.path}]`);
+      return await analyzeCode(toolInput.path, options.projectDir);
+
+    // Git operations
+    case 'git_status':
+      console.log(`\n[Getting git status]`);
+      return await getGitStatus(options.projectDir);
+
+    case 'git_commits':
+      console.log(`\n[Getting git commits]`);
+      return await getGitCommits(options.projectDir, toolInput.count);
+
+    case 'git_commit':
+      console.log(`\n[Creating git commit: ${toolInput.message}]`);
+      return await createGitCommit(options.projectDir, toolInput.message, toolInput.files);
+
+    case 'git_diff':
+      console.log(`\n[Getting git diff${toolInput.file ? ` for ${toolInput.file}` : ''}]`);
+      return await getGitDiff(options.projectDir, toolInput.file);
+
+    case 'git_checkout':
+      console.log(`\n[Git checkout: ${toolInput.target}${toolInput.create_branch ? ' (new branch)' : ''}]`);
+      return await gitCheckout(options.projectDir, toolInput.target, toolInput.create_branch);
+
+    case 'git_pull':
+      console.log(`\n[Git pull from ${toolInput.remote}${toolInput.branch ? `/${toolInput.branch}` : ''}]`);
+      return await gitPull(options.projectDir, toolInput.remote, toolInput.branch);
+
+    case 'git_push':
+      console.log(`\n[Git push to ${toolInput.remote}${toolInput.branch ? `/${toolInput.branch}` : ''}${toolInput.force ? ' (force)' : ''}]`);
+      return await gitPush(options.projectDir, toolInput.remote, toolInput.branch, toolInput.force);
+
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }

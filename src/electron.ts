@@ -5,6 +5,18 @@ import dotenv from 'dotenv';
 import { executeShellCommand } from './tools/shell';
 import { editFile } from './tools/file';
 import { toolDefinitions } from './tools/definitions';
+import {
+  browseFiles,
+  getFileDetails,
+  analyzeCode,
+  getGitStatus,
+  getGitCommits,
+  createGitCommit,
+  getGitDiff,
+  gitCheckout,
+  gitPull,
+  gitPush
+} from './tools/browser';
 
 // Load environment variables
 dotenv.config();
@@ -82,12 +94,28 @@ ipcMain.handle('send-message', async (event, message: string) => {
 Working directory: ${process.cwd()}
 
 IMPORTANT: You MUST USE TOOLS to complete user requests. DO NOT just think about using tools - actually use them.
-When users ask for information about files or the system, ALWAYS use the run_shell tool.
+When users ask for information about files or the system, ALWAYS use the appropriate tool.
 When users want to create or modify files, ALWAYS use the edit_file tool.
 
 You have access to the following tools:
+
+Basic tools:
 1. run_shell - Execute shell commands in the project directory
 2. edit_file - Edit file contents using path and content
+
+File browser tools:
+3. browse_files - Browse files in a directory with optional filtering and sorting
+4. file_details - Get details about a specific file, including its content
+5. analyze_code - Analyze code in a file to extract information about its structure
+
+Git operations:
+6. git_status - Get the git status of the repository
+7. git_commits - Get recent git commits
+8. git_commit - Create a git commit
+9. git_diff - Get the diff for a file or the entire repository
+10. git_checkout - Perform a git checkout
+11. git_pull - Perform a git pull
+12. git_push - Perform a git push
 
 - Be precise and helpful
 - When executing commands, explain what you're doing
@@ -226,14 +254,55 @@ async function executeToolCall(
   toolInput: any
 ): Promise<ToolResult> {
   const projectDir = process.cwd();
-  
+
   switch (toolName) {
     case 'run_shell':
       return await executeShellCommand(toolInput.command, projectDir, false);
-      
+
     case 'edit_file':
       return await editFile(toolInput.path, toolInput.content, projectDir);
-      
+
+    // File browser tools
+    case 'browse_files':
+      return await browseFiles(
+        toolInput.directory,
+        projectDir,
+        {
+          showHidden: toolInput.show_hidden,
+          filter: toolInput.filter,
+          sort: toolInput.sort,
+          sortDirection: toolInput.sort_direction
+        }
+      );
+
+    case 'file_details':
+      return await getFileDetails(toolInput.path, projectDir);
+
+    case 'analyze_code':
+      return await analyzeCode(toolInput.path, projectDir);
+
+    // Git operations
+    case 'git_status':
+      return await getGitStatus(projectDir);
+
+    case 'git_commits':
+      return await getGitCommits(projectDir, toolInput.count);
+
+    case 'git_commit':
+      return await createGitCommit(projectDir, toolInput.message, toolInput.files);
+
+    case 'git_diff':
+      return await getGitDiff(projectDir, toolInput.file);
+
+    case 'git_checkout':
+      return await gitCheckout(projectDir, toolInput.target, toolInput.create_branch);
+
+    case 'git_pull':
+      return await gitPull(projectDir, toolInput.remote, toolInput.branch);
+
+    case 'git_push':
+      return await gitPush(projectDir, toolInput.remote, toolInput.branch, toolInput.force);
+
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
